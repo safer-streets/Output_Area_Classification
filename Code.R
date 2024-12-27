@@ -149,51 +149,131 @@ variable_lookup <- read_csv("./data/lookup/Variables_OAC.csv")
 
 # THIS NEEDS TO BE UPDATED FOR UK VARIABLES #
 
+# Get Census Table Lists
+census_tables <- read_csv("https://github.com/alexsingleton/Census_2021_Output_Areas/raw/main/Table_Metadata.csv",show_col_types = FALSE)
+
+# Read Census Table (Remove ts041 - number of households,ts006 - density)
+C_Table_Name_List <- census_tables %>% select(Table_ID) %>% unique() %>% pull()
+C_Table_Name_List %<>% setdiff(c("ts041","ts006"))
+
+for (ct_tmpID in C_Table_Name_List) {
+  
+  # Download Census Table
+  CT_tmp <- read_csv(paste0("https://github.com/alexsingleton/Census_2021_Output_Areas/blob/main/output_data/csv/",ct_tmpID,".csv?raw=true"),show_col_types = FALSE)
+  
+  # Calculate Percentages
+  CT_tmp %<>%
+    
+    mutate_at(vars(-1:-2), list(PCT = ~(. / !!sym(paste0(ct_tmpID,"0001"))*100)))
+  
+  assign(ct_tmpID,CT_tmp)
+  rm(ct_tmpID,CT_tmp)
+  
+}
+
+
+
+
+
 
 # v01 - Usual residents per square hectare
-Non_PCT <- ts006 %>%
-  rename(v01 = ts0060001)
+Non_PCT <- ts001 %>%
+  left_join(OA_2021_22_Boundaries) %>%
+  mutate(v01 = ts0010001/area_ha) %>%
+  select(OA, v01)
 
-# Import disability and population data
-disability <- read_csv("./data/census/custom-filtered-2023-06-01T17_21_50Z.csv") 
-pop <- read_csv("./data/census/custom-filtered-2023-06-02T16_15_50Z.csv")
+# # # # # Need to remember to zero E00187556 to match ONS official density estimates
 
-disability %<>%
-  filter(Regions == "London") %>%
+
+# SDR - Import disability and population data
+
+# England & Wales (Files from https://www.ons.gov.uk/datasets/create)
+
+disability_EW <- read_csv("./data/census/E_W_Disability.csv")
+# 183,765 out of 188,880 areas available
+# All usual residents; Age: 6 Categories; Disability: 3 Categories
+
+pop_EW <- read_csv("./data/census/E_W_Age_6_Cat.csv")
+
+disability_EW %<>%
   rename(disability = Observation) %>%
   clean_names() %>%
-  select(age_6_categories,disability_3_categories,disability)
+  select(output_areas,age_6_categories,disability_3_categories,disability) %>%
+  filter(disability_3_categories == "Disabled under the Equality Act")
 
-pop %<>%
-  filter(Regions == "London") %>%
+pop_EW %<>%
   rename(population = Observation) %>%
   clean_names() %>%
-  select(age_6_categories,population)
+  select(output_areas,age_6_categories,population)
 
-disability %<>% 
-  left_join(pop, by = "age_6_categories") %>%
-    filter(disability_3_categories == "Disabled under the Equality Act") %>%
-        select(age_6_categories,disability,population) %>%
-        mutate( rate = disability / population)
+disability_EW %<>%
+  left_join(pop_EW, by = c("output_areas","age_6_categories")) %>%
+        select(output_areas,age_6_categories,disability,population)
 
 
-# Calculate expected rates; append actual rates; calculate SDR
-OA21_Pop_London <- read_csv("./data/census/custom-filtered-2023-06-03T13_25_11Z.csv")
+# Scotland
+disability_S <- read_parquet("https://github.com/Geographic-Data-Service/Scotland_Census_2022_OA/raw/refs/heads/main/output_data/parquet/UV303b.parquet")
+population_S <- read_parquet("https://github.com/Geographic-Data-Service/Scotland_Census_2022_OA/raw/refs/heads/main/output_data/parquet/UV101b.parquet")
 
-OA21_SDR_London <- OA21_Pop_London %<>%
+
+# Northern Ireland
+# For closest comparability, 8 category age bands were used and concatenated
+# 3,757 out of 3,780 areas pass confidentiality checks.
+# Disability - https://build.nisra.gov.uk/en/custom/data?d=PEOPLE&v=DZ21&v=DISABILITY_DVO&v=AGE_BAND_AGG8
+
+disability_NI <- read_csv("./data/census/NI_Disability.csv")
+population_NI <- read_parquet("https://github.com/Geographic-Data-Service/Northern_Ireland_Census_2022_Data_Zone/raw/refs/heads/main/output_data/parquet/ni023.parquet")
+
+disability_NI %<>%
   clean_names() %>%
-  left_join(disability) %>%
-  mutate(expected = observation * rate) %>%
-  select(output_areas_code,expected) %>%
-  group_by(output_areas_code) %>%
-  summarise(expected = sum(expected))
+  select(census_2021_data_zone_code,health_problem_or_disability_long_term_label,age_8_categories_label ,count) %>%
+  filter(health_problem_or_disability_long_term_label %in% c("Day-to-day activities limited a lot","Day-to-day activities limited a little")) %>%
+  mutate(age_8_categories_label = case_when(
+    age_8_categories_label == "0-15 years" ~ "Aged 15 years and under",
+    age_8_categories_label == "16-24 years" ~ "Aged 16 to 24 years",
+    age_8_categories_label == "25-34 years" ~ "Aged 25 to 34 years",
+    age_8_categories_label == "35-44 years" ~ "Aged 35 to 49 years", # Not an exact age match
+    age_8_categories_label == "45-54 years" ~ "Aged 50 to 64 years", # Not an exact age match
+    age_8_categories_label == "55-64 years" ~ "Aged 50 to 64 years", # Not an exact age match
+    age_8_categories_label == "65-74 years" ~ "Aged 65 years and over",
+    age_8_categories_label == "75+ years" ~ "Aged 65 years and over"
+    )) %>%
+  select(!health_problem_or_disability_long_term_label) %>% #remove to combine the two disability measures
+  group_by(census_2021_data_zone_code,age_8_categories_label) %>%
+  summarise(disability = sum(count, na.rm = TRUE))
 
-OA21_SDR_London %<>%
-  left_join(ts038, by = c("output_areas_code" = "OA")) %>%
-  select(output_areas_code, expected,ts0380002) %>%
-  mutate(v42 = ts0380002 / expected * 100) %>%
-  rename(OA = output_areas_code) %>%
-  select(OA, v42)
+
+
+
+# Create a combined UK file
+
+disability_UK <- disability_EW
+#bind_rows(disability_EW,disability_S,disability_NI)
+
+# Calculate UK Age Group Rates
+disability_rate <-  disability_UK %>%
+          group_by(age_6_categories) %>%
+          summarise(
+            total_disability = sum(disability, na.rm = TRUE),
+            total_population = sum(population, na.rm = TRUE)) %>%
+          mutate(UK_Rate = total_disability / total_population) %>%
+          select(age_6_categories,UK_Rate)
+
+# Append UK Rates and Calculate Expected
+disability_UK %<>%
+  left_join(disability_rate) %>%
+  mutate(expected = population * UK_Rate)
+
+# Calculate SDR (v42)
+disability_UK %<>%
+  group_by(output_areas) %>%
+  summarise(
+    total_observed = sum(disability),
+    total_expected = sum(expected)) %>%
+  mutate(v42 = total_observed / total_expected) %>%
+  select(output_areas,v42)
+
+
 
 
 #---------
