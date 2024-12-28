@@ -1,61 +1,61 @@
-﻿No.,Variable Name,Variables,Non_PCT,Domain
-v01,Usual residents per square kilometre,ts0060001,X,Demographic
-v02,Aged 4 years and under,ts007a0002,,Demographic
-v03,Aged 5 to 14 years,ts007a0003 & ts007a0004,,Demographic
-v04,Aged 25 to 44 years,"ts007a0007 & ts007a0008 & ts007a0009 & ts007a0010	",,Demographic
-v05,Aged 45 to 64 years,ts007a0011 & ts007a0012 & ts007a0013 &  ts007a0014,,Demographic
-v06,Aged 65 to 84 years,ts007a0015 & ts007a0016 & ts007a0017 & ts007a0018 ,,Demographic
-v07,Aged 85 years and over,ts007a0019,,Demographic
-v08,Country of birth: Europe: United Kingdom,ts0040003,,Ethnicity and Origins
-v09,Country of birth: Europe: EU countries,ts0040004,,Ethnicity and Origins
-v10,Country of birth: Europe: Non-EU countries,ts0040009,,Ethnicity and Origins
-v11,Country of birth: Africa,ts0040011,,Ethnicity and Origins
-v12,Ethnic group: Bangladeshi,ts0210003,,Ethnicity and Origins
-v13,Ethnic group: Chinese,ts0210004,,Ethnicity and Origins
-v14,Ethnic group: Indian,ts0210005,,Ethnicity and Origins
-v15,Ethnic group: Pakistani,ts0210006,,Ethnicity and Origins
-v16,Ethnic group: Other Asian,ts0210007,,Ethnicity and Origins
-v17,Ethnic group: Black,ts0210008,,Ethnicity and Origins
-v18,Ethnic group: Mixed or Multiple ethnic groups,ts0210012,,Ethnicity and Origins
-v19,Ethnic group: White,ts0210017,,Ethnicity and Origins
-v20,Cannot speak English well or at all,ts0290006,,Ethnicity and Origins
-v21,No religion,ts0300002,,Ethnicity and Origins
-v22,Christian,ts0300003,,Ethnicity and Origins
-v23,Other religion,ts0300009,,Ethnicity and Origins
-v24,Never married and never registered a civil partnership,ts0020002,,Living Arrangements
-v25,Married or in a registered civil partnership,ts0020003,,Living Arrangements
-v26,Separated or divorced,ts0020010 & ts0020013,,Living Arrangements
-v27,One-person household,ts0030002,,Living Arrangements
-v28,Families with no children,ts0030008 & ts0030012,,Living Arrangements
-v29,Families with dependent children,ts0030009 & ts0030013 & ts0030016,,Living Arrangements
-v30,All household members have the same ethnic group,ts0230003,,Living Arrangements
-v31,Lives in a communal establishment,ts0010003,,Usual Residence
-v32,Address one year ago is the same as the address of enumeration,ts0190002,,Usual Residence
-v33,Detached house or bungalow,ts0440002,,Usual Residence
-v34,Semi-detached house or bungalow,ts0440003,,Usual Residence
-v35,Terraced (including end-terrace) house,ts0440004,,Usual Residence
-v36,"Flat, maisonette or apartment",ts0440005 & ts0440006 & ts0440007,,Usual Residence
-v37,Ownership or shared ownership,ts0540002 & ts0540005,,Usual Residence
-v38,Social rented,ts0540007,,Usual Residence
-v39,Private rented,ts0540010,,Usual Residence
-v40,Occupancy rating of rooms: +1 or more,ts0520003,,Usual Residence
-v41,Occupancy rating of rooms: -1 or less,ts0520005,,Usual Residence
-v42,Standardised Disability Ratio,,X,Other
-v43,Provides no unpaid care,ts0390002,,Other
-v44,2 or more cars or vans in household,ts0450004,,Other
-v45,"Highest level of qualification: Level 1, 2 or Apprenticeship",ts0670003,,Other
-v46,Highest level of qualification: Level 3 qualifications,ts0670006,,Other
-v47,Highest level of qualification: Level 4 qualifications or above,ts0670007,,Other
-v48,Hours worked: Part-time,ts0590002,,Employment
-v49,Hours worked: Full-time,ts0590005,,Employment
-v50,NS-SeC: L15 Full-time students,ts0620010,,Employment
-v51,"SOC: 1. Managers, directors and senior officials",ts0630002,,Employment
-v52,SOC: 2. Professional occupations,ts0630003,,Employment
-v53,SOC: 3. Associate professional and technical occupations,ts0630004,,Employment
-v54,SOC: 4. Administrative and secretarial occupations,ts0630005,,Employment
-v55,SOC: 5. Skilled trades occupations,"ts0630006	",,Employment
-v56,"SOC: 6. Caring, leisure and other service occupations",ts0630007,,Employment
-v57,SOC: 7. Sales and customer service occupations,ts0630008,,Employment
-v58,"SOC: 8. Process, plant and machine operatives",ts0630009,,Employment
-v59,SOC: 9. Elementary occupations,ts0630010,,Employment
-v60,Economically active: Unemployed,ts0650001,X,Employment
+No.,Variable_Name,Non_PCT,Domain,engwals_codes,scot_codes,ni_codes
+v01,Usual residents per square kilometre,X,Demographic,,,
+v02,Aged 4 years and under,,Demographic,ts007a0002,UV1030002 & UV1030003 & UV1030004 & UV1030005 & UV1030006,ni0250002 & ni0250003 & ni0250004 & ni0250005 & ni0250006
+v03,Aged 5 - 4 years,,Demographic,ts007a0003 & ts007a0004,UV1030007 & UV1030008 & UV1030009 & UV1030010 & UV1030011 & UV1030012 & UV1030013 & UV1030014 & UV1030015 & UV1030016,ni0250007 & ni0250008 & ni0250009 & ni0250010 & ni0250011 & ni0250012 & ni0250013 & ni0250014 & ni0250015 & ni0250016
+v04,Aged 25 - 44 years,,Demographic,ts007a0007 & ts007a0008 & ts007a0009 & ts007a0010,UV1030027 & UV1030028 & UV1030029 & UV1030030 & UV1030031 & UV1030032 & UV1030033 & UV1030034 & UV1030035 & UV1030036 & UV1030037 & UV1030038 & UV1030039 & UV1030040 & UV1030041 & UV1030042 & UV1030043 & UV1030044 & UV1030045 & UV1030046,ni0250027 & ni0250028 & ni0250029 & ni0250030 & ni0250031 & ni0250032 & ni0250033 & ni0250034 & ni0250035 & ni0250036 & ni0250037 & ni0250038 & ni0250039 & ni0250040 & ni0250041 & ni0250042 & ni0250043 & ni0250044 & ni0250045 & ni0250046
+v05,Aged 45 - 64 years,,Demographic,ts007a0011 & ts007a0012 & ts007a0013 & ts007a0014,UV1030047 & UV1030048 & UV1030049 & UV1030050 & UV1030051 & UV1030052 & UV1030053 & UV1030054 & UV1030055 & UV1030056 & UV1030057 & UV1030058 & UV1030059 & UV1030060 & UV1030061 & UV1030062 & UV1030063 & UV1030064 & UV1030065 & UV1030066,ni0250047 & ni0250048 & ni0250049 & ni0250050 & ni0250051 & ni0250052 & ni0250053 & ni0250054 & ni0250055 & ni0250056 & ni0250057 & ni0250058 & ni0250059 & ni0250060 & ni0250061 & ni0250062 & ni0250063 & ni0250064 & ni0250065 & ni0250066
+v06,Aged 65 - 84 years,,Demographic,ts007a0015 & ts007a0016 & ts007a0017 & ts007a0018,UV1030067 & UV1030068 & UV1030069 & UV1030070 & UV1030071 & UV1030072 & UV1030073 & UV1030074 & UV1030075 & UV1030076 & UV1030077 & UV1030078 & UV1030079 & UV1030080 & UV1030081 & UV1030082 & UV1030083 & UV1030084 & UV1030085 & UV1030086,ni0250067 & ni0250068 & ni0250069 & ni0250070 & ni0250071 & ni0250072 & ni0250073 & ni0250074 & ni0250075 & ni0250076 & ni0250077 & ni0250078 & ni0250079 & ni0250080 & ni0250081 & ni0250082 & ni0250083 & ni0250084 & ni0250085 & ni0250086
+v07,Aged 85 years and over,,Demographic,ts007a0019,UV1030087 & UV1030088 & UV1030089 & UV1030090 & UV1030091 & UV1030092 & UV1030093 & UV1030094 & UV1030095 & UV1030096 & UV1030097 & UV1030098 & UV1030099 & UV1030100 & UV1030101 & UV1030102,ni0250087 & ni0250088 & ni0250089 & ni0250090 & ni0250091 & ni0250092 & ni0250093 & ni0250094 & ni0250095 & ni0250096 & ni0250097 & ni0250098 & ni0250099 & ni0250100 & ni0250101 & ni0250102
+v08,Country of birth: Europe: United Kingdom,,Ethnicity and Origins,ts0040003,UV204b0043,ni0330002 & ni0330003
+v09,Country of birth: Europe: EU countries,,Ethnicity and Origins,ts0040004,UV204b0190 & UV204b0211,ni0330004 & ni0330005
+v10,Country of birth: Europe: Non-EU countries,,Ethnicity and Origins,ts0040009,UV204b0253,ni0330006
+v11,Country of birth: Africa,,Ethnicity and Origins,ts0040010,UV204b0274,ni0330007
+v12,Ethnic group: Bangladeshi,,Ethnicity and Origins,ts0210003,UV2010013,ni0600014
+v13,Ethnic group: Chinese,,Ethnicity and Origins,ts0210004,UV2010014,ni0600006
+v14,Ethnic group: Indian,,Ethnicity and Origins,ts0210005,UV2010012,ni0600005
+v15,Ethnic group: Pakistani,,Ethnicity and Origins,ts0210006,UV2010011,ni0600008
+v16,Ethnic group: Other Asian,,Ethnicity and Origins,ts0210007,UV2010015,ni0600010
+v17,Ethnic group: Black,,Ethnicity and Origins,ts0210008,UV2010022,ni0590004
+v18,Ethnic group: Mixed or Multiple ethnic groups,,Ethnicity and Origins,ts0210012,UV2010009,ni0600013
+v19,Ethnic group: White,,Ethnicity and Origins,ts0210017,UV2010002,ni0600002
+v20,Cannot speak English well or at all,,Ethnicity and Origins,ts0290006 & ts0290007,UV2100002 & UV2100006 & UV2100007 & UV2100008 & UV2100009 & UV2100010 & UV2100011,ni0560005 & ni0560006
+v21,No religion,,Ethnicity and Origins,ts0300002,UV2050012,ni1720006
+v22,Christian,,Ethnicity and Origins,ts0300003,UV2050002 & UV2050003 & UV2050004,ni1720002
+v23,Other religion,,Ethnicity and Origins,ts0300009,UV2050011,ni1720005
+v24,Never married and never registered a civil partnership,,Living Arrangements,ts0020002,UV1040002,ni1370002
+v25,Married or in a registered civil partnership,,Living Arrangements,ts0020003,UV1040003,ni1380002
+v26,Separated or divorced,,Living Arrangements,ts0020010 & ts0020013,UV1040004 & UV1040005,ni1370005 & ni1370006
+v27,One-person household,,Living Arrangements,ts0030002,UV1130002,ni2500002
+v28,Families with no children,,Living Arrangements,ts0030008 & ts0030012,UV1130008 & UV1130013,ni2520004
+v29,Families with dependent children,,Living Arrangements,ts0030009 & ts0030013 & ts0030016 & ts0030021,UV1130009 & UV1130010 & UV1130014 & UV1130015 & UV1130018 & UV1130019 & UV1130022 & UV1130023,ni2520005 & ni2520007
+v30,All household members have the same ethnic group,,Living Arrangements,ts0230003,UV2030003,ni2570003
+v31,Lives in a communal establishment,,Usual Residence,ts0010003,UV101b0043,ni1920003
+v32,Address 1 year ago is the same as the address of enumeration,,Usual Residence,ts0190002,UV2130001,ni0040002
+v33,Detached house or bungalow,,Usual Residence,ts0440002,UV4020003,ni1990002
+v34,Semi-detached house or bungalow,,Usual Residence,ts0440003,UV4020004,ni1990003
+v35,Terraced (including end-terrace) house or bungalow,,Usual Residence,ts0440004,UV4020005,ni1990004
+v36,Flat maisonette or apartment,,Usual Residence,ts0440005 & ts0440006 & ts0440008,UV4020007 & UV4020008 & UV4020009,ni1990005 & ni1990006 & ni1990007
+v37,Ownership or shared ownership,,Usual Residence,ts0540002 & ts0540005,UV4040002 & UV4040005,ni2690002
+v38,Social rented,,Usual Residence,ts0540007,UV4040007,ni2690003
+v39,Private rented,,Usual Residence,ts0540010,UV4040008,ni2690004
+v40,Occupancy rating of rooms: +1 or more,,Usual Residence,,,
+v41,Occupancy rating of rooms: -1 or less,,Usual Residence,,,
+v42,SIR,X,Other,ts0380002,UV3030002 & UV3030003,ni0420002
+v43,Provides unpaid care,,Other,ts0390003 & ts0390004 & ts0390005 & ts0390006 & ts0390007 & ts0390008 & ts0390009,UV3010003,ni1270003
+v44,2 or more cars or vans in household,,Other,ts0450004 & ts0450005,UV4050004 & UV4050005,ni2210004
+v45,Highest level of qualification: Level 1- 2 or Apprenticeship,,Other,ts0670003 & ts0670004 & ts0670005,UV5010003 & UV5010005,ni1100003 & ni1100004 & ni1100005
+v46,Highest level of qualification: Level 3 qualifications,,Other,ts0670006,UV5010004,ni1100006
+v47,Highest level of qualification: Level 4 qualifications or above,,Other,ts0670007,UV5010006 & UV5010007,ni1100007
+v48,Hours worked: Part-time,,Employment,ts0590002,UV6040002 & UV6040003,ni1130002
+v49,Hours worked: Full-time,,Employment,ts0590005,UV6040004 & UV6040005,ni1130003
+v50,NS-SeC: L15 Full-time students,,Employment,ts0620010,UV6070017,ni1500010
+v51,SOC: 1. Managers directors and senior officials,,Employment,ts0630002,UV6060002,ni1550002
+v52,SOC: 2. Professional occupations,,Employment,ts0630003,UV6060005,ni1550003
+v53,SOC: 3. Associate professional and technical occupations,,Employment,ts0630004,UV6060010,ni1550004
+v54,SOC: 4. Administrative and secretarial occupations,,Employment,ts0630005,UV6060016,ni1550005
+v55,SOC: 5. Skilled trades occupations,,Employment,ts0630006,UV6060019,ni1550006
+v56,SOC: 6. Caring leisure and other service occupations,,Employment,ts0630007,UV6060024,ni1550007
+v57,SOC: 7. Sales and customer service occupations,,Employment,ts0630008,UV6060028,ni1580008
+v58,SOC: 8. Process plant and machine operatives,,Employment,ts0630009,UV6060032,ni1550009
+v59,SOC: 9. Elementary occupations,,Employment,ts0630010,UV6060034,ni1550010
+v60,Economically active: Unemployed,X,Employment,ts0660013,UV6010012,ni0550005

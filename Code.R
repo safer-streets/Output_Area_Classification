@@ -136,20 +136,19 @@ file.remove("Output_Areas_2021_EW_BFC_V8.gpkg")
 # SWITCH FOR NEW LOCATION OF DATA
 
 ############################################################
-# Create Input Measures
+# Create Input Measures ####################################
 ############################################################
 
 
-# Import variables lookup
+# Import variables lookup - This table contains all the variables used in OAC 2021
 variable_lookup <- read_csv("./data/lookup/Variables_OAC.csv")
 
-#---------
-# Non-Percentages or multi-census table variables
-#---------
 
-# THIS NEEDS TO BE UPDATED FOR UK VARIABLES #
+# -----------------------------------
+# GET ENGLAND AND WALES CENSUS TABLES
+# -----------------------------------
 
-# Get Census Table Lists
+# Get England and Wales Census Table List
 census_tables <- read_csv("https://github.com/alexsingleton/Census_2021_Output_Areas/raw/main/Table_Metadata.csv",show_col_types = FALSE)
 
 # Read Census Table (Remove ts041 - number of households,ts006 - density)
@@ -172,28 +171,65 @@ for (ct_tmpID in C_Table_Name_List) {
 }
 
 
+# --------------------------
+# GET SCOTLAND CENSUS TABLES
+# --------------------------
+
+
+
+# -----------------------------------
+# GET NORTHERN IRELAND CENSUS TABLES
+# -----------------------------------
 
 
 
 
-# v01 - Usual residents per square hectare
-Non_PCT <- ts001 %>%
+
+# -----------------------------------------------
+# Non-Percentage Variables
+# ----------------------------------------------
+
+# v01 - Usual Residents per Square Hectare
+# =======================================
+
+# E&W
+Non_PCT_EW <- ts001 %>%
+  mutate(tot_pop = ts0010001) %>%
+  select(OA,tot_pop)
+# NI
+Non_PCT_NI <- ni001 %>%
+  mutate(tot_pop = ni0010001) %>%
+  select(OA,tot_pop)
+# S
+Non_PCT_S <- UV103 %>%
+  mutate(tot_pop = UV1030001) %>%
+  select(OA,tot_pop)
+# UK
+Density_UK <-Non_PCT_EW %>%
+  bind_rows(Non_PCT_NI, Non_PCT_S) %>%
   left_join(OA_2021_22_Boundaries) %>%
-  mutate(v01 = ts0010001/area_ha) %>%
+  mutate(v01 = tot_pop/area_ha) %>%
   select(OA, v01)
+
+rm(Non_PCT_EW,Non_PCT_NI,Non_PCT_S)
 
 # # # # # Need to remember to zero E00187556 to match ONS official density estimates
 
 
-# SDR - Import disability and population data
+# SDR - Import Disability / Health and Population Data
+# ====================================================
 
 # England & Wales (Files from https://www.ons.gov.uk/datasets/create)
-
-disability_EW <- read_csv("./data/census/E_W_Disability.csv")
-# 183,765 out of 188,880 areas available
+# disability_EW <- read_csv("./data/census/E_W_Disability.csv")
+# For size, these data were chunked using Chunk_CSV.R
 # All usual residents; Age: 6 Categories; Disability: 3 Categories
+# 183,765 out of 188,880 areas available
+disability_EW <- map_dfr(c("./data/census/E_W_Disability_chunk_1.csv",
+                            "./data/census/E_W_Disability_chunk_2.csv",
+                            "./data/census/E_W_Disability_chunk_3.csv"
+                            ), read_csv)
 
-pop_EW <- read_csv("./data/census/E_W_Age_6_Cat.csv")
+pop_EW <- read_csv("./data/census/E_W_Age_6_Cat.csv") # Population Data
 
 disability_EW %<>%
   rename(disability = Observation) %>%
@@ -206,14 +242,63 @@ pop_EW %<>%
   clean_names() %>%
   select(output_areas,age_6_categories,population)
 
-disability_EW %<>%
-  left_join(pop_EW, by = c("output_areas","age_6_categories")) %>%
-        select(output_areas,age_6_categories,disability,population)
+disability_EW<- pop_EW %<>%
+  left_join(disability_EW, by = c("output_areas","age_6_categories")) %>%
+        select(output_areas,age_6_categories,disability,population) %>%
+  mutate(disability = replace_na(disability, 0)) # this is needed as for some OA these were supressed for disclosure
 
 
 # Scotland
+# Disability
 disability_S <- read_parquet("https://github.com/Geographic-Data-Service/Scotland_Census_2022_OA/raw/refs/heads/main/output_data/parquet/UV303b.parquet")
+
+# Create the disability counts by age bands
+disability_S %<>%
+mutate(
+Aged_15_years_and_under = UV303b0002 - UV303b0023,
+Aged_16_to_24_years = UV303b0003 - UV303b0024,
+Aged_25_to_34_years = UV303b0004 - UV303b0025,
+Aged_35_to_49_years = UV303b0005 - UV303b0026,
+Aged_50_to_64_years = UV303b0006 - UV303b0027,
+Aged_65_years_and_over = UV303b0007 - UV303b0028) %>%
+select(OA, starts_with("Aged"))
+
+# Pivot table into longer format and match E&W format
+disability_S %<>%
+pivot_longer(
+  cols = starts_with("Aged"),
+  names_to = "age_6_categories",
+  values_to = "disability"
+) %>%
+  mutate(age_6_categories = str_replace_all(age_6_categories, "_", " "))
+
+# Population
+
 population_S <- read_parquet("https://github.com/Geographic-Data-Service/Scotland_Census_2022_OA/raw/refs/heads/main/output_data/parquet/UV101b.parquet")
+
+# Create the population counts by age bands
+population_S %<>%
+  mutate(
+    Aged_15_years_and_under = UV101b0002,
+    Aged_16_to_24_years = UV101b0003,
+    Aged_25_to_34_years = UV101b0004,
+    Aged_35_to_49_years = UV101b0005,
+    Aged_50_to_64_years = UV101b0006,
+    Aged_65_years_and_over = UV101b0007) %>%
+  select(OA, starts_with("Aged"))
+
+# Pivot table into longer format and match E&W format
+population_S %<>%
+  pivot_longer(
+    cols = starts_with("Aged"),
+    names_to = "age_6_categories",
+    values_to = "population"
+  ) %>%
+  mutate(age_6_categories = str_replace_all(age_6_categories, "_", " "))
+
+disability_S <- population_S %<>%
+  left_join(disability_S, by = c("output_areas","age_6_categories")) %>%
+  select(output_areas,age_6_categories,disability,population)
 
 
 # Northern Ireland
@@ -222,7 +307,6 @@ population_S <- read_parquet("https://github.com/Geographic-Data-Service/Scotlan
 # Disability - https://build.nisra.gov.uk/en/custom/data?d=PEOPLE&v=DZ21&v=DISABILITY_DVO&v=AGE_BAND_AGG8
 
 disability_NI <- read_csv("./data/census/NI_Disability.csv")
-population_NI <- read_parquet("https://github.com/Geographic-Data-Service/Northern_Ireland_Census_2022_Data_Zone/raw/refs/heads/main/output_data/parquet/ni023.parquet")
 
 disability_NI %<>%
   clean_names() %>%
@@ -240,15 +324,53 @@ disability_NI %<>%
     )) %>%
   select(!health_problem_or_disability_long_term_label) %>% #remove to combine the two disability measures
   group_by(census_2021_data_zone_code,age_8_categories_label) %>%
-  summarise(disability = sum(count, na.rm = TRUE))
+  summarise(disability = sum(count, na.rm = TRUE)) %>%
+  rename(age_6_categories_label = age_8_categories_label)
+
+population_NI <- read_parquet("https://github.com/Geographic-Data-Service/Northern_Ireland_Census_2022_Data_Zone/raw/refs/heads/main/output_data/parquet/ni023.parquet")
+
+# Create the population counts by age bands
+population_NI %<>%
+  mutate(
+    V0-15_years = ni0230002,
+    V16-24_years = ni0230003,
+    V25-34_years = ni0230004,
+    V35-44_years = ni0230005,
+    V45-54_years = ni0230006,
+    V55-64_years = ni0230007,
+    V65-74_years = ni0230008,
+    V75_years = ni0230009) %>%
+  select(OA, starts_with("V"))
+
+# Pivot table into longer format and match E&W format
+population_NI %<>%
+  pivot_longer(
+    cols = starts_with("V"),
+    names_to = "age_8_categories_label",
+    values_to = "population"
+  ) %>%
+  mutate(age_8_categories_label = case_when(
+    age_8_categories_label == "V0-15_years" ~ "Aged 15 years and under",
+    age_8_categories_label == "V16-24_years" ~ "Aged 16 to 24 years",
+    age_8_categories_label == "V25-34_years" ~ "Aged 25 to 34 years",
+    age_8_categories_label == "V35-44_years" ~ "Aged 35 to 49 years", # Not an exact age match
+    age_8_categories_label == "V45-54_years" ~ "Aged 50 to 64 years", # Not an exact age match
+    age_8_categories_label == "V55-64_years" ~ "Aged 50 to 64 years", # Not an exact age match
+    age_8_categories_label == "V65-74_years" ~ "Aged 65 years and over",
+    age_8_categories_label == "V75_years" ~ "Aged 65 years and over"
+  )) %>%
+  group_by(census_2021_data_zone_code,age_8_categories_label) %>%
+  summarise(population = sum(count, na.rm = TRUE)) %>%
+  rename(age_6_categories_label = age_8_categories_label)
 
 
-
+disability_NI <- population_NI %<>%
+  left_join(disability_NI, by = c("census_2021_data_zone_code","age_6_categories_label")) %>%
+  select(output_areas,age_6_categories_label,disability,population)
 
 # Create a combined UK file
 
-disability_UK <- disability_EW
-#bind_rows(disability_EW,disability_S,disability_NI)
+disability_UK <- bind_rows(disability_EW,disability_S,disability_NI)
 
 # Calculate UK Age Group Rates
 disability_rate <-  disability_UK %>%
@@ -273,12 +395,15 @@ disability_UK %<>%
   mutate(v42 = total_observed / total_expected) %>%
   select(output_areas,v42)
 
+# 
+# ====================================================
 
 
-
-#---------
+# -----------------------------------------------
 # Percentage Variables
-#---------
+# ----------------------------------------------
+
+
 
 # Get a list of input variables that are not combinations or non percentages
 v_s <- variable_lookup %>%
