@@ -402,18 +402,18 @@ disability_UK %<>%
 # -----------------------------------------------
 # Percentage Variables
 # ----------------------------------------------
+# This uses the census tables and % that were calculated earlier
 
-
+# England and Wales
 
 # Get a list of input variables that are not combinations or non percentages
 v_s <- variable_lookup %>%
-        filter((!str_detect(Variables, "&"))& is.na(Non_PCT)) %>%
-        select(Variables) %>%
+        filter((!str_detect(engwals_codes, "&")) & is.na(Non_PCT)) %>%
+        select(engwals_codes) %>%
         pull()
 
 v_t <- unique(sub("....$", "", v_s)) # table list
 v_t <- map(v_t, get) # convert to a list of objects
-
 v_s <- paste0(v_s,"_PCT") # Append _PCT to select percentages
 
 # Create the temporary table to hold the percentages
@@ -422,13 +422,13 @@ tmp_table <- v_t %>%
   select(OA, all_of(v_s)) %>%
   rename_all(~str_replace_all(., "_PCT", "")) # remove the _PCT from column names
 
-# Get the LOAC variable names from the LOAC lookup variable lookup table
+# Get the OAC variable names from the lookup table
 V_name <- variable_lookup %>%
-            filter(Variables %in% colnames(tmp_table)) %>%
+            filter(engwals_codes %in% colnames(tmp_table)) %>%
             select(No.) %>%
             pull()
           
-# Change the census variable names to the LOAC variable names
+# Change the census variable names to the OAC variable names
 tmp_table %<>% 
   rename_with(~ c("OA",V_name), everything())
 
