@@ -44,8 +44,6 @@ library(h2o)
 # Import spatial data
 #---------
 
-#1000000
-
 # Output Areas (Dec 2021) Boundaries Full Clipped EW (BFC) - E&W
 # Manually download https://drive.google.com/uc?export=download&id=1y1CHipxAZ0NOrmd8iSDkOqm4oTqUwtSJ
 OA_2021_Boundary_EW <- st_read("Output_Areas_2021_EW_BFC_V8.gpkg")
