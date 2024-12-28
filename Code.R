@@ -417,20 +417,80 @@ v_t <- map(v_t, get) # convert to a list of objects
 v_s <- paste0(v_s,"_PCT") # Append _PCT to select percentages
 
 # Create the temporary table to hold the percentages
-tmp_table <- v_t %>% 
+PCT_EW <- v_t %>% 
   reduce(full_join, by = "OA") %>%
   select(OA, all_of(v_s)) %>%
   rename_all(~str_replace_all(., "_PCT", "")) # remove the _PCT from column names
 
 # Get the OAC variable names from the lookup table
 V_name <- variable_lookup %>%
-            filter(engwals_codes %in% colnames(tmp_table)) %>%
+            filter(engwals_codes %in% colnames(PCT_EW)) %>%
             select(No.) %>%
             pull()
           
 # Change the census variable names to the OAC variable names
-tmp_table %<>% 
+PCT_EW %<>% 
   rename_with(~ c("OA",V_name), everything())
+
+
+# Scotland
+
+# Get a list of input variables that are not combinations or non percentages
+v_s <- variable_lookup %>%
+  filter((!str_detect(scot_codes, "&")) & is.na(Non_PCT)) %>%
+  select(scot_codes) %>%
+  pull()
+
+v_t <- unique(sub("....$", "", v_s)) # table list
+v_t <- map(v_t, get) # convert to a list of objects
+v_s <- paste0(v_s,"_PCT") # Append _PCT to select percentages
+
+# Create the temporary table to hold the percentages
+PCT_S <- v_t %>% 
+  reduce(full_join, by = "OA") %>%
+  select(OA, all_of(v_s)) %>%
+  rename_all(~str_replace_all(., "_PCT", "")) # remove the _PCT from column names
+
+# Get the OAC variable names from the lookup table
+V_name <- variable_lookup %>%
+  filter(scot_codes %in% colnames(PCT_S)) %>%
+  select(No.) %>%
+  pull()
+
+# Change the census variable names to the OAC variable names
+PCT_S %<>% 
+  rename_with(~ c("OA",V_name), everything())
+
+
+# Northern Ireland
+
+# Get a list of input variables that are not combinations or non percentages
+v_s <- variable_lookup %>%
+  filter((!str_detect(ni_codes, "&")) & is.na(Non_PCT)) %>%
+  select(ni_codes) %>%
+  pull()
+
+v_t <- unique(sub("....$", "", v_s)) # table list
+v_t <- map(v_t, get) # convert to a list of objects
+v_s <- paste0(v_s,"_PCT") # Append _PCT to select percentages
+
+# Create the temporary table to hold the percentages
+PCT_NI <- v_t %>% 
+  reduce(full_join, by = "OA") %>%
+  select(OA, all_of(v_s)) %>%
+  rename_all(~str_replace_all(., "_PCT", "")) # remove the _PCT from column names
+
+# Get the OAC variable names from the lookup table
+V_name <- variable_lookup %>%
+  filter(ni_codes %in% colnames(PCT_NI)) %>%
+  select(No.) %>%
+  pull()
+
+# Change the census variable names to the OAC variable names
+PCT_NI %<>% 
+  rename_with(~ c("OA",V_name), everything())
+
+
 
 
 #---------
