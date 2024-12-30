@@ -398,9 +398,9 @@ disability_UK %<>%
 
 
 # -----------------------------------------------
-# Percentage Variables
+# Single Variables
 # ----------------------------------------------
-# This uses the census tables and % that were calculated earlier
+# These use the census tables and % that were calculated earlier
 
 # England and Wales
 
@@ -491,9 +491,11 @@ PCT_NI %<>%
 
 
 
-#---------
-# Combined Variables
-#---------
+#--------------------------------------------------------------------
+# Combined Variables (England and Wales, Scotland, Northern Ireland)
+#--------------------------------------------------------------------
+
+# England and Wales
 
 # v03 - Aged 5 to 14 years
 v03 <- ts007a %>% select(OA, ts007a0003_PCT,ts007a0004_PCT) %>% 
@@ -515,37 +517,103 @@ v06 <- ts007a %>% select(OA, ts007a0015_PCT,ts007a0016_PCT,ts007a0017_PCT,ts007a
   mutate(v06 = rowSums(across(where(is.numeric)))) %>%
   select(OA,v06)
 
-# v26   Separated or divorced
+# v20 - Cannot speak English well or at all
+v20 <- ts029 %>% select(OA,ts0290006_PCT, ts0290007_PCT) %>%
+  mutate(v20 = rowSums(across(where(is.numeric)))) %>%
+  select(OA,v20)
+
+# v26 - Separated or divorced
 v26 <- ts002 %>% select(OA, ts0020010_PCT,ts0020013_PCT) %>% 
   mutate(v26 = rowSums(across(where(is.numeric)))) %>%
   select(OA,v26)
 
-# v28   Families with no children
+# v28 - Families with no children
 v28 <- ts003 %>% select(OA,  ts0030008_PCT, ts0030012_PCT) %>% 
   mutate(v28 = rowSums(across(where(is.numeric)))) %>%
   select(OA,v28)
 
-# v29   Families with dependent children
+# v29 - Families with dependent children
 v29 <- ts003 %>% select(OA, ts0030009_PCT,ts0030013_PCT,ts0030016_PCT) %>% 
   mutate(v29 = rowSums(across(where(is.numeric)))) %>%
   select(OA,v29)
 
-# v36   Flat, maisonette or apartment
+# v36 - Flat, maisonette or apartment
 v36 <- ts044 %>% select(OA, ts0440005_PCT,ts0440006_PCT,ts0440007_PCT) %>% 
   mutate(v36 = rowSums(across(where(is.numeric)))) %>%
   select(OA,v36)
  
-# v37   Ownership or shared ownership
+# v37 - Ownership or shared ownership
 v37 <- ts054 %>% select(OA,ts0540002_PCT,ts0540005_PCT) %>% 
   mutate(v37 = rowSums(across(where(is.numeric)))) %>%
   select(OA,v37)
 
-# v60 Unemployed 
-v60 <- ts065 %>% select(OA,ts0650001) %>% 
-  left_join(ts066) %>%
-  select(OA,ts0650001,ts0660001) %>%
-  mutate(v60 = 100 / ts0660001 * ts0650001) %>%
-  select(OA, v60)
+# v43 - Provides unpaid care
+v43 <- ts039 %>% select(OA,ts0390003_PCT, ts0390004_PCT, ts0390005_PCT, ts0390006_PCT, ts0390007_PCT, ts0390008_PCT, ts0390009_PCT) %>% 
+  mutate(v43 = rowSums(across(where(is.numeric)))) %>%
+  select(OA,v43)
+
+# v44 - 2 or more cars or vans in household
+v44 <- ts045 %>% select(OA,ts0450004_PCT & ts0450005_PCT) %>% 
+  mutate(v44 = rowSums(across(where(is.numeric)))) %>%
+  select(OA,v44)
+
+# v45 - Highest level of qualification: Level 1- 2 or Apprenticeship
+v45 <- ts067 %>% select(OA,ts0670003_PCT, ts0670004_PCT, ts0670005_PCT) %>% 
+  mutate(v45 = rowSums(across(where(is.numeric)))) %>%
+  select(OA,v45)
+
+# Combined variables for England and Wales
+combined_England_Wales <- v03 %>%
+  left_join(v04) %>%
+  left_join(v05) %>%
+  left_join(v06) %>%
+  left_join(v20) %>%
+  left_join(v26) %>%
+  left_join(v28) %>%
+  left_join(v29) %>%
+  left_join(v36) %>%
+  left_join(v37) %>%
+  left_join(v43) %>%
+  left_join(v44) %>%
+  left_join(v45)
+
+# Remove unwanted tibble
+rm(v04,v05,v06,v20,v26,v28,v29,v36,v37,v43,v44,v45)
+
+
+
+# Scotland
+
+# v02 - Aged 4 years and under
+v02 <- UV103 %>% select(OA, UV1030002_PCT, UV1030003_PCT, UV1030004_PCT, UV1030005_PCT, UV1030006_PCT) %>% 
+  mutate(v02 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v02)
+
+# v03 - Aged 5 - 14 years
+v03 <- UV103 %>% select(OA, UV1030007_PCT, UV1030008_PCT, UV1030009_PCT, UV1030010_PCT, UV1030011_PCT, UV1030012_PCT, UV1030013_PCT, UV1030014_PCT, UV1030015_PCT, UV1030016_PCT) %>% 
+  mutate(v03 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v03)
+
+# v04 - Aged 25 - 44 years
+v03 <- UV103 %>% select(OA, UV1030027_PCT, UV1030028_PCT, UV1030029_PCT, UV1030030_PCT, UV1030031_PCT, UV1030032_PCT, UV1030033_PCT, UV1030034_PCT, UV1030035_PCT, UV1030036_PCT, UV1030037_PCT, UV1030038_PCT, UV1030039_PCT, UV1030040_PCT, UV1030041_PCT, UV1030042_PCT, UV1030043_PCT, UV1030044_PCT, UV1030045_PCT, UV1030046_PCT) %>% 
+  mutate(v04 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v04)
+
+# v05 - Aged 45 - 64 years
+v05 <- UV103 %>% select(OA, UV1030047_PCT, UV1030048_PCT, UV1030049_PCT, UV1030050_PCT, UV1030051_PCT, UV1030052_PCT, UV1030053_PCT, UV1030054_PCT, UV1030055_PCT, UV1030056_PCT, UV1030057_PCT, UV1030058_PCT, UV1030059_PCT, UV1030060_PCT, UV1030061_PCT, UV1030062_PCT, UV1030063_PCT, UV1030064_PCT, UV1030065_PCT, UV1030066_PCT) %>% 
+  mutate(v05 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v05)
+
+# v06 - Aged 65 - 84 years
+v06 <- UV103 %>% select(OA, UV1030067_PCT, UV1030068_PCT, UV1030069_PCT, UV1030070_PCT, UV1030071_PCT, UV1030072_PCT, UV1030073_PCT, UV1030074_PCT, UV1030075_PCT, UV1030076_PCT, UV1030077_PCT, UV1030078_PCT, UV1030079_PCT, UV1030080_PCT, UV1030081_PCT, UV1030082_PCT, UV1030083_PCT, UV1030084_PCT, UV1030085_PCT, UV1030086_PCT) %>% 
+  mutate(v06 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v06)
+
+# v07 - Aged 85 years and over
+v07 <- UV103 %>% select(OA, UV1030087_PCT, UV1030088_PCT, UV1030089_PCT, UV1030090_PCT, UV1030091_PCT, UV1030092_PCT, UV1030093_PCT, UV1030094_PCT, UV1030095_PCT, UV1030096_PCT, UV1030097_PCT, UV1030098_PCT, UV1030099_PCT, UV1030100_PCT, UV1030101_PCT, UV1030102_PCT) %>% 
+  mutate(v07 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v07)
+
 
 
 ############################################################
