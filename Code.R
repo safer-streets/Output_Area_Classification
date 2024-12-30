@@ -563,22 +563,15 @@ v45 <- ts067 %>% select(OA,ts0670003_PCT, ts0670004_PCT, ts0670005_PCT) %>%
   select(OA,v45)
 
 # Combined variables for England and Wales
-combined_England_Wales <- v03 %>%
-  left_join(v04) %>%
-  left_join(v05) %>%
-  left_join(v06) %>%
-  left_join(v20) %>%
-  left_join(v26) %>%
-  left_join(v28) %>%
-  left_join(v29) %>%
-  left_join(v36) %>%
-  left_join(v37) %>%
-  left_join(v43) %>%
-  left_join(v44) %>%
-  left_join(v45)
+# List of data
+list_of_dfs <- list(v04,v05,v06,v20,v26,v28,v29,v36,v37,v43,v44,v45)
+
+# Combine
+combined_England_Wales <- list_of_dfs %>%
+  reduce(left_join, by = "OA")
 
 # Remove unwanted tibble
-rm(v04,v05,v06,v20,v26,v28,v29,v36,v37,v43,v44,v45)
+rm(list_of_dfs)
 
 
 
@@ -614,6 +607,165 @@ v07 <- UV103 %>% select(OA, UV1030087_PCT, UV1030088_PCT, UV1030089_PCT, UV10300
   mutate(v07 = rowSums(across(where(is.numeric)))) %>%
   select(OA, v07)
 
+# v20 - Cannot speak English well or at all
+v20 <- UV210 %>% select(OA, UV2100010_PCT, UV2100011_PCT) %>% 
+  mutate(v20 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v20)
+
+# v22 - Christian
+v22 <- UV205 %>% select(OA, UV2050002_PCT, UV2050003_PCT, UV2050004_PCT) %>% 
+  mutate(v22 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v22)
+
+# v26 - Separated or divorced
+v26 <- UV104 %>% select(OA, UV1040004_PCT, UV1040005_PCT) %>% 
+  mutate(v26 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v26)
+
+# v28 - Families with no children
+v28 <- UV113 %>% select(OA, UV1130008_PCT, UV1130013_PCT) %>% 
+  mutate(v28 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v28)
+
+# v29 - Families with dependent children
+v29 <- UV113 %>% select(OA, UV1130009_PCT, UV1130010_PCT, UV1130014_PCT, UV1130015_PCT, UV1130018_PCT, UV1130019_PCT, UV1130022_PCT, UV1130023_PCT) %>% 
+  mutate(v29 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v29)
+
+# v36 - Flat maisonette or apartment
+v36 <- UV402 %>% select(OA, UV4020007_PCT, UV4020008_PCT, UV4020009_PCT) %>% 
+  mutate(v36 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v36)
+
+# v37 - Ownership or shared ownership
+v37 <- UV402 %>% select(OA, UV4040002_PCT, UV4040005_PCT, UV4040006_PCT) %>% 
+  mutate(v37 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v37)
+
+# v44 - 2 or more cars or vans in household
+v44 <- UV405 %>% select(OA, UV4050004_PCT, UV4050005_PCT, UV4050006_PCT) %>% 
+  mutate(v44 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v44)
+
+# v45 - Highest level of qualification: Level 1- 2 or Apprenticeship
+v45 <- UV501 %>% select(OA, UV5010003_PCT, UV5010005_PCT) %>% 
+  mutate(v45 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v45)
+
+# v47 - Highest level of qualification: Level 4 qualifications or above
+v47 <- UV501 %>% select(OA, UV5010006_PCT, UV5010007_PCT) %>% 
+  mutate(v47 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v47)
+
+# v48 - Hours worked: Part-time
+v48 <- UV604 %>% select(OA, UV6040002_PCT, UV6040003_PCT) %>% 
+  mutate(v48 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v48)
+
+# v49 - Hours worked: Full-time
+v49 <- UV604 %>% select(OA, UV6040004_PCT, UV6040005_PCT) %>% 
+  mutate(v49 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v49)
+
+# Combined variables for Scotland
+  # List of data
+  list_of_dfs <- list(v02, v03,v04,v05,v06,v07,v20,v22,v26,v28,v29,v36,v37,v44,v45,v47,v48,v49)
+  
+  # Combine
+  combined_Scotland <- list_of_dfs %>%
+    reduce(left_join, by = "OA")
+  
+  # Remove unwanted tibble
+  rm(list_of_dfs)
+  
+  
+  
+  
+# Northern Ireland
+  
+# v02 - Aged 4 years and under
+v02 <- ni025 %>% select(OA, ni0250002_PCT, ni0250003_PCT, ni0250004_PCT, ni0250005_PCT, ni0250006_PCT) %>% 
+  mutate(v02 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v02)
+
+# v03 - Aged 5 - 14 years
+v03 <- ni025 %>% select(OA, ni0250007_PCT, ni0250008_PCT, ni0250009_PCT, ni0250010_PCT, ni0250011_PCT, ni0250012_PCT, ni0250013_PCT, ni0250014_PCT, ni0250015_PCT, ni0250016_PCT) %>% 
+  mutate(v03 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v03)  
+  
+# v04 - Aged 25 - 44 years
+v04 <- ni025 %>% select(OA, ni0250027_PCT, ni0250028_PCT, ni0250029_PCT, ni0250030_PCT, ni0250031_PCT, ni0250032_PCT, ni0250033_PCT, ni0250034_PCT, ni0250035_PCT, ni0250036_PCT, ni0250037_PCT, ni0250038_PCT, ni0250039_PCT, ni0250040_PCT, ni0250041_PCT, ni0250042_PCT, ni0250043_PCT, ni0250044_PCT, ni0250045_PCT, ni0250046_PCT) %>% 
+  mutate(v04 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v04)  
+
+# v05 - Aged 45 - 64 years
+v05 <- ni025 %>% select(OA, ni0250047_PCT, ni0250048_PCT, ni0250049_PCT, ni0250050_PCT, ni0250051_PCT, ni0250052_PCT, ni0250053_PCT, ni0250054_PCT, ni0250055_PCT, ni0250056_PCT, ni0250057_PCT, ni0250058_PCT, ni0250059_PCT, ni0250060_PCT, ni0250061_PCT, ni0250062_PCT, ni0250063_PCT, ni0250064_PCT, ni0250065_PCT, ni0250066_PCT) %>% 
+  mutate(v05 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v05)  
+
+# v06 - Aged 65 - 84 years
+v06 <- ni025 %>% select(OA, ni0250067_PCT, ni0250068_PCT, ni0250069_PCT, ni0250070_PCT, ni0250071_PCT, ni0250072_PCT, ni0250073_PCT, ni0250074_PCT, ni0250075_PCT, ni0250076_PCT, ni0250077_PCT, ni0250078_PCT, ni0250079_PCT, ni0250080_PCT, ni0250081_PCT, ni0250082_PCT, ni0250083_PCT, ni0250084_PCT, ni0250085_PCT, ni0250086_PCT) %>% 
+  mutate(v06 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v06)  
+
+# v07 - Aged 85 years and over
+v07 <- ni025 %>% select(OA, ni0250087_PCT, ni0250088_PCT, ni0250089_PCT, ni0250090_PCT, ni0250091_PCT, ni0250092_PCT, ni0250093_PCT, ni0250094_PCT, ni0250095_PCT, ni0250096_PCT, ni0250097_PCT, ni0250098_PCT, ni0250099_PCT, ni0250100_PCT, ni0250101_PCT, ni0250102_PCT) %>% 
+  mutate(v07 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v07) 
+
+# v08 - Country of birth: Europe: United Kingdom
+v08 <- ni033 %>% select(OA, ni0330002_PCT, ni0330003_PCT) %>% 
+  mutate(v08 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v08) 
+
+
+# v09 -Country of birth: Europe: EU countries
+v09 <- ni033 %>% select(OA, ni0330004_PCT, ni0330005_PCT) %>% 
+  mutate(v09 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v09)
+
+# v20 - Cannot speak English well or at all
+v20 <- ni056 %>% select(OA, ni0560005_PCT, ni0560006_PCT) %>% 
+  mutate(v20 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v20) 
+
+# v26 -Separated or divorced
+v26 <- ni137 %>% select(OA, ni1370005_PCT, ni1370006_PCT) %>% 
+  mutate(v26 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v26) 
+
+# v29 - Families with dependent children
+v29 <- ni252 %>% select(OA, ni2520005_PCT, ni2520007_PCT) %>% 
+  mutate(v29 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v29)
+
+# v36 - Flat maisonette or apartment
+v36 <- ni199 %>% select(OA,ni1990005_PCT, ni1990006_PCT, ni1990007_PCT) %>% 
+  mutate(v36 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v36)
+
+# v45 - Highest level of qualification: Level 1- 2 or Apprenticeship
+v45 <- ni110 %>% select(OA,ni1100003_PCT, ni1100004_PCT, ni1100005_PCT) %>% 
+  mutate(v45 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v45)
+
+
+# Combined variables for Northern Ireland
+# List of data
+list_of_dfs <- list(v02, v03,v04,v05,v06,v07,v08,v09,v20,v26,v29,v36,v45)
+
+# Combine
+combined_Northern_Ireland <- list_of_dfs %>%
+  reduce(left_join, by = "OA")
+
+# Remove unwanted tibble
+rm(list_of_dfs)
+
+
+
+
+
+
 
 
 ############################################################
@@ -621,38 +773,60 @@ v07 <- UV103 %>% select(OA, UV1030087_PCT, UV1030088_PCT, UV1030089_PCT, UV10300
 ############################################################
 
 #---------
-# Combine All the Variables for London
+# Combine All the Variables
 #---------
 
-# List of data
-list_of_dfs <- list(OA_london, Non_PCT, OA21_SDR_London,tmp_table,v03,v04,v05,v06,v26,v28,v29,v36,v37,v60)
+England_and_Wales <- combined_England_Wales %>%
+  left_join(PCT_EW)
 
-# Combine
-OA_london <- list_of_dfs %>%
-  reduce(left_join, by = "OA")
+Scotland <- combined_Scotland %>%
+  left_join(PCT_S)
+
+Northern_Ireland <- combined_Northern_Ireland %>%
+  left_join(PCT_NI)
+
+# Order the columns consistently
+England_and_Wales %<>%
+select(v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v40, v41, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
+
+Scotland %<>%
+select(v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v40, v41, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
+
+Northern_Ireland %<>%
+select(v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v40, v41, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
+
+# Bind the rows and append disability and density data
+
+OAC_Input <- England_and_Wales %>%
+                bind_rows(Scotland) %>%
+                bind_rpws(Northern_Ireland) %>%
+                left_join(Density_UK) %>%
+                left_join(disability_UK)
+
 
 #---------
 # Calculate the Inverse hyperbolic sine and range standardize
 #---------
 
-OA_london %<>%
-  mutate_at(vars(-(1:3)), ~asinh(.)) %>%
-  mutate_at(vars(-(1:3)), ~rescale(.))
+OAC_Input %<>%
+  mutate_at(vars(-1), ~asinh(.)) %>%
+  mutate_at(vars(-1), ~rescale(.))
 
 # Save the raw input data
-write_parquet(OA_london, "./data/OA_Input_london.parquet")
+write_parquet(OAC_Input, "./data/OAC_Input.parquet")
+
 
 ############################################################
 # Create Supergroup Clusters
 ############################################################
 
 h2o.init(max_mem_size="30G")
-OA_london_h20 <- as.h2o(OA_london)
-v_used <-  colnames(OA_london)[-1:-3]
+OAC_h20 <- as.h2o(OAC_Input)
+v_used <-  colnames(OAC_Input)[-1]
 
 # Clustering Function
 kmeans_func <- function(x) {
-  results_run <- h2o.kmeans(training_frame = OA_london_h20, k = 7, x = v_used, init = "Random",max_iterations=1000,standardize = FALSE)
+  results_run <- h2o.kmeans(training_frame = OAC_h20, k = 7, x = v_used, init = "Random",max_iterations=1000,standardize = FALSE)
   list(results = results_run, wss = h2o.tot_withinss(results_run))
 }
 
@@ -672,14 +846,20 @@ results <- best_result$results
 wss <- best_result$wss
 
 # Cluster Assignments
-cluster_assignments <- OA_london %>%
+cluster_assignments <- OAC_Input %>%
   select(OA)
   
-results_lookup <- h2o.predict(results, OA_london_h20) %>%
+results_lookup <- h2o.predict(results, OAC_h20) %>%
   as_tibble()
 
 cluster_assignments %<>%
   bind_cols(results_lookup)
+
+
+
+
+
+
 
 cluster_assignments_SF <- OA_2021_Boundary %>%
  left_join(cluster_assignments, by = c("OA21CD" = "OA")) %>%
