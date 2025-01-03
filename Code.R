@@ -173,14 +173,54 @@ for (ct_tmpID in C_Table_Name_List) {
 # GET SCOTLAND CENSUS TABLES
 # --------------------------
 
+# Get Scotland Table List
+census_tables <- read_csv("https://github.com/Geographic-Data-Service/Scotland_Census_2022_OA/raw/main/output_data/Table_Metadata.csv",show_col_types = FALSE)
+
+# Read Census Table
+C_Table_Name_List <- census_tables %>% select(Table_ID) %>% unique() %>% pull()
+
+for (ct_tmpID in C_Table_Name_List) {
+  
+  # Download Census Table
+  CT_tmp <- read_csv(paste0("https://github.com/Geographic-Data-Service/Scotland_Census_2022_OA/blob/main/output_data/csv/",ct_tmpID,".csv?raw=true"),show_col_types = FALSE)
+  
+  # Calculate Percentages
+  CT_tmp %<>%
+    
+    mutate_at(vars(-1:-2), list(PCT = ~(. / !!sym(paste0(ct_tmpID,"0001"))*100)))
+  
+  assign(ct_tmpID,CT_tmp)
+  rm(ct_tmpID,CT_tmp)
+  
+}
+
+
 
 
 # -----------------------------------
 # GET NORTHERN IRELAND CENSUS TABLES
 # -----------------------------------
 
+# Get Northern Ireland Table List
+census_tables <- read_csv("https://github.com/Geographic-Data-Service/Northern_Ireland_Census_2022_Data_Zone/raw/main/Table_Metadata.csv",show_col_types = FALSE)
 
+# Read Census Table
+C_Table_Name_List <- census_tables %>% select(Table_ID) %>% unique() %>% pull()
 
+for (ct_tmpID in C_Table_Name_List) {
+  
+  # Download Census Table
+  CT_tmp <- read_csv(paste0("https://github.com/Geographic-Data-Service/Northern_Ireland_Census_2022_Data_Zone/blob/main/output_data/csv/",ct_tmpID,".csv?raw=true"),show_col_types = FALSE)
+  
+  # Calculate Percentages
+  CT_tmp %<>%
+    
+    mutate_at(vars(-1:-2), list(PCT = ~(. / !!sym(paste0(ct_tmpID,"0001"))*100)))
+  
+  assign(ct_tmpID,CT_tmp)
+  rm(ct_tmpID,CT_tmp)
+  
+}
 
 
 # -----------------------------------------------
@@ -243,7 +283,8 @@ pop_EW %<>%
 disability_EW<- pop_EW %<>%
   left_join(disability_EW, by = c("output_areas","age_6_categories")) %>%
         select(output_areas,age_6_categories,disability,population) %>%
-  mutate(disability = replace_na(disability, 0)) # this is needed as for some OA these were supressed for disclosure
+  mutate(disability = replace_na(disability, 0)) %>%# this is needed as for some OA these were supressed for disclosure
+  rename(OA  = output_areas)
 
 
 # Scotland
@@ -295,8 +336,8 @@ population_S %<>%
   mutate(age_6_categories = str_replace_all(age_6_categories, "_", " "))
 
 disability_S <- population_S %<>%
-  left_join(disability_S, by = c("output_areas","age_6_categories")) %>%
-  select(output_areas,age_6_categories,disability,population)
+  left_join(disability_S, by = c("OA","age_6_categories")) %>%
+  select(OA,age_6_categories,disability,population)
 
 
 # Northern Ireland
@@ -323,22 +364,23 @@ disability_NI %<>%
   select(!health_problem_or_disability_long_term_label) %>% #remove to combine the two disability measures
   group_by(census_2021_data_zone_code,age_8_categories_label) %>%
   summarise(disability = sum(count, na.rm = TRUE)) %>%
-  rename(age_6_categories_label = age_8_categories_label)
+  rename(age_6_categories_label = age_8_categories_label) %>%
+  rename(DZ = census_2021_data_zone_code)
 
 population_NI <- read_parquet("https://github.com/Geographic-Data-Service/Northern_Ireland_Census_2022_Data_Zone/raw/refs/heads/main/output_data/parquet/ni023.parquet")
 
 # Create the population counts by age bands
 population_NI %<>%
   mutate(
-    V0-15_years = ni0230002,
-    V16-24_years = ni0230003,
-    V25-34_years = ni0230004,
-    V35-44_years = ni0230005,
-    V45-54_years = ni0230006,
-    V55-64_years = ni0230007,
-    V65-74_years = ni0230008,
+    V0_15_years = ni0230002,
+    V16_24_years = ni0230003,
+    V25_34_years = ni0230004,
+    V35_44_years = ni0230005,
+    V45_54_years = ni0230006,
+    V55_64_years = ni0230007,
+    V65_74_years = ni0230008,
     V75_years = ni0230009) %>%
-  select(OA, starts_with("V"))
+  select(DZ, starts_with("V"))
 
 # Pivot table into longer format and match E&W format
 population_NI %<>%
@@ -348,23 +390,25 @@ population_NI %<>%
     values_to = "population"
   ) %>%
   mutate(age_8_categories_label = case_when(
-    age_8_categories_label == "V0-15_years" ~ "Aged 15 years and under",
-    age_8_categories_label == "V16-24_years" ~ "Aged 16 to 24 years",
-    age_8_categories_label == "V25-34_years" ~ "Aged 25 to 34 years",
-    age_8_categories_label == "V35-44_years" ~ "Aged 35 to 49 years", # Not an exact age match
-    age_8_categories_label == "V45-54_years" ~ "Aged 50 to 64 years", # Not an exact age match
-    age_8_categories_label == "V55-64_years" ~ "Aged 50 to 64 years", # Not an exact age match
-    age_8_categories_label == "V65-74_years" ~ "Aged 65 years and over",
+    age_8_categories_label == "V0_15_years" ~ "Aged 15 years and under",
+    age_8_categories_label == "V16_24_years" ~ "Aged 16 to 24 years",
+    age_8_categories_label == "V25_34_years" ~ "Aged 25 to 34 years",
+    age_8_categories_label == "V35_44_years" ~ "Aged 35 to 49 years", # Not an exact age match
+    age_8_categories_label == "V45_54_years" ~ "Aged 50 to 64 years", # Not an exact age match
+    age_8_categories_label == "V55_64_years" ~ "Aged 50 to 64 years", # Not an exact age match
+    age_8_categories_label == "V65_74_years" ~ "Aged 65 years and over",
     age_8_categories_label == "V75_years" ~ "Aged 65 years and over"
   )) %>%
-  group_by(census_2021_data_zone_code,age_8_categories_label) %>%
-  summarise(population = sum(count, na.rm = TRUE)) %>%
+  group_by(DZ,age_8_categories_label) %>%
+  summarise(population = sum(population, na.rm = TRUE)) %>%
   rename(age_6_categories_label = age_8_categories_label)
 
 
 disability_NI <- population_NI %<>%
-  left_join(disability_NI, by = c("census_2021_data_zone_code","age_6_categories_label")) %>%
-  select(output_areas,age_6_categories_label,disability,population)
+  left_join(disability_NI, by = c("DZ","age_6_categories_label")) %>%
+  select(DZ,age_6_categories_label,disability,population) %>%
+  rename(OA = DZ) %>%
+  rename(age_6_categories = age_6_categories_label)
 
 # Create a combined UK file
 
@@ -386,12 +430,12 @@ disability_UK %<>%
 
 # Calculate SDR (v42)
 disability_UK %<>%
-  group_by(output_areas) %>%
+  group_by(OA) %>%
   summarise(
     total_observed = sum(disability),
     total_expected = sum(expected)) %>%
   mutate(v42 = total_observed / total_expected) %>%
-  select(output_areas,v42)
+  select(OA,v42)
 
 # 
 # ====================================================
