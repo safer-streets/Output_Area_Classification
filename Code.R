@@ -155,8 +155,8 @@ for (ct_tmpID in C_Table_Name_List) {
   
   # Calculate Percentages
   CT_tmp %<>%
-    
-    mutate_at(vars(-1:-2), list(PCT = ~(. / !!sym(paste0(ct_tmpID,"0001"))*100)))
+    mutate_at(vars(-1:-2), list(PCT = ~(. / !!sym(paste0(ct_tmpID,"0001"))*100))) %>%
+    mutate_at(vars(ends_with("PCT")), ~ ifelse(is.nan(.), 0, .)) # this is needed to catch 4 OA (S00150454,S00175452,S00176350,S00178567) where denominators are 0 in UV604 and ts063
   
   assign(ct_tmpID,CT_tmp)
   rm(ct_tmpID,CT_tmp)
@@ -833,6 +833,8 @@ OAC_Input <- England_and_Wales %>%
                 bind_rows(Northern_Ireland)%>%
                 left_join(Density_UK) %>%
                 left_join(disability_UK)
+
+
 
 
 #---------
