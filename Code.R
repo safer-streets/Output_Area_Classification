@@ -30,7 +30,9 @@ library(magrittr)
 library(janitor)
 library(scales)
 library(arrow)
-library(h2o)
+library(foreach)
+library(doParallel)
+library(purrr)
 #library(ggpubr)
 #library(patchwork)
 #library(tcltk2)
@@ -51,7 +53,7 @@ OA_2021_Boundary_EW %<>%
   rename(OA = OA21CD)
 
 # Output Areas 2022 Scotland (extract from https://spatialdata.gov.scot/geonetwork/srv/api/records/a0a643ba-c0ed-4860-93a9-5fee11ac492a)
-OA_2022_Boundary_S <- st_read("https://drive.google.com/uc?export=download&id=1t_NU19WpvydTBZmLqOgkN1h_2iDiJ5i4")
+OA_2022_Boundary_S <- st_read("https://drive.google.com/uc?export=download&id=1I2-apnfFPix5pjpiWrqWkR4h3-ryLKPu")
 OA_2022_Boundary_S %<>%
   rename(OA = code) %>%
   select(OA)
@@ -91,42 +93,9 @@ OA_2021_22_Boundaries <- bind_rows(
 rm("OA_2021_Boundary_EW","OA_2022_Boundary_S","OA_2021_Boundary_NI")
 file.remove("Output_Areas_2021_EW_BFC_V8.gpkg")
 
+# save UK OA file
+st_write(OA_2021_22_Boundaries,"OA_2021_22_Boundaries.gpkg")
 
-# 
-# 
-# 
-# # Output Area to Region (December 2021) Lookup in England and Wales
-# OA_Region <- read_csv("https://www.arcgis.com/sharing/rest/content/items/efda0d0e14da4badbd8bdf8ae31d2f00/data")
-# 
-# # Output Area to Upper-Tier Local Authorities (December 2021) Lookup in England and Wales
-# #OA_UTLAD <- read_csv("https://www.arcgis.com/sharing/rest/content/items/4393e36fa6184b0fb1b2562d98db1da6/data")
-# 
-# # Output Area to Lower layer Super Output Area to Middle layer Super Output Area to Local Authority District (December 2021) Lookup in England and Wales V2
-# OA_UTLAD <- read_csv("https://www.arcgis.com/sharing/rest/content/items/792f7ab3a99d403ca02cc9ca1cf8af02/data")
-# 
-# 
-# # Local Authority Districts (December 2022) GB BGC
-# LAD_Dec22 <- st_read("https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Local_Authority_Districts_December_2022_UK_BGC_V2/FeatureServer/0/query?where=1%3D1&outFields=LAD22CD,LAD22NM&outSR=4326&f=json")
-
-
-
-
-# # Fix Projections
-# OA_2021_Boundary %<>%
-# st_transform(27700)
-# 
-# LAD_Dec22 %<>%
-# st_transform(27700)
-
-
-# Create Greater London OA lookup
-# OA_london <- OA_Region %>%
-#               filter( rgn22nm == "London") %>%
-#               select(oa21cd) %>%
-#               left_join(OA_UTLAD) %>%
-#               rename(OA = oa21cd) %>%
-#               select(OA, lad22cd,lad22nm)
-  
 #---------
 #  Pull in census 2021 data, calculate PCT
 #---------
@@ -160,7 +129,7 @@ for (ct_tmpID in C_Table_Name_List) {
   
   # Calculate Percentages
   CT_tmp %<>%
-    
+
     mutate_at(vars(-1:-2), list(PCT = ~(. / !!sym(paste0(ct_tmpID,"0001"))*100)))
   
   assign(ct_tmpID,CT_tmp)
@@ -214,7 +183,7 @@ for (ct_tmpID in C_Table_Name_List) {
   
   # Calculate Percentages
   CT_tmp %<>%
-    
+    rename(OA = DZ) %>%    # not acurate but renamed for consistency
     mutate_at(vars(-1:-2), list(PCT = ~(. / !!sym(paste0(ct_tmpID,"0001"))*100)))
   
   assign(ct_tmpID,CT_tmp)
@@ -251,7 +220,8 @@ Density_UK <-Non_PCT_EW %>%
 
 rm(Non_PCT_EW,Non_PCT_NI,Non_PCT_S)
 
-# # # # # Need to remember to zero E00187556 to match ONS official density estimates
+Density_UK %<>%
+mutate(v01 = if_else(OA == "E00187556", 0, v01)) #Zero E00187556 to match ONS official density estimates
 
 
 # SDR - Import Disability / Health and Population Data
@@ -477,6 +447,16 @@ PCT_EW %<>%
 
 # Scotland
 
+
+# This is a dummy variable that is needed to replace the Address 1 year ago is 
+# the same as the address of enumeration, which will be included at Data Zone
+# level when the Scotland table builder is available. For now this is just a
+# dummy variable
+
+UV213 <- UV802 %>%
+  select(OA) %>%
+  mutate(UV2130001_PCT = 0)
+
 # Get a list of input variables that are not combinations or non percentages
 v_s <- variable_lookup %>%
   filter((!str_detect(scot_codes, "&")) & is.na(Non_PCT)) %>%
@@ -597,7 +577,7 @@ v43 <- ts039 %>% select(OA,ts0390003_PCT, ts0390004_PCT, ts0390005_PCT, ts039000
   select(OA,v43)
 
 # v44 - 2 or more cars or vans in household
-v44 <- ts045 %>% select(OA,ts0450004_PCT & ts0450005_PCT) %>% 
+v44 <- ts045 %>% select(OA,ts0450004_PCT, ts0450005_PCT) %>% 
   mutate(v44 = rowSums(across(where(is.numeric)))) %>%
   select(OA,v44)
 
@@ -608,14 +588,16 @@ v45 <- ts067 %>% select(OA,ts0670003_PCT, ts0670004_PCT, ts0670005_PCT) %>%
 
 # Combined variables for England and Wales
 # List of data
-list_of_dfs <- list(v04,v05,v06,v20,v26,v28,v29,v36,v37,v43,v44,v45)
+list_of_dfs <- list(v03,v04,v05,v06,v20,v26,v28,v29,v36,v37,v43,v44,v45)
 
 # Combine
 combined_England_Wales <- list_of_dfs %>%
   reduce(left_join, by = "OA")
 
 # Remove unwanted tibble
+rm(list=c("v03","v04", "v05", "v06", "v20", "v26", "v28", "v29", "v36", "v37", "v43", "v44", "v45"))
 rm(list_of_dfs)
+
 
 
 
@@ -632,7 +614,7 @@ v03 <- UV103 %>% select(OA, UV1030007_PCT, UV1030008_PCT, UV1030009_PCT, UV10300
   select(OA, v03)
 
 # v04 - Aged 25 - 44 years
-v03 <- UV103 %>% select(OA, UV1030027_PCT, UV1030028_PCT, UV1030029_PCT, UV1030030_PCT, UV1030031_PCT, UV1030032_PCT, UV1030033_PCT, UV1030034_PCT, UV1030035_PCT, UV1030036_PCT, UV1030037_PCT, UV1030038_PCT, UV1030039_PCT, UV1030040_PCT, UV1030041_PCT, UV1030042_PCT, UV1030043_PCT, UV1030044_PCT, UV1030045_PCT, UV1030046_PCT) %>% 
+v04 <- UV103 %>% select(OA, UV1030027_PCT, UV1030028_PCT, UV1030029_PCT, UV1030030_PCT, UV1030031_PCT, UV1030032_PCT, UV1030033_PCT, UV1030034_PCT, UV1030035_PCT, UV1030036_PCT, UV1030037_PCT, UV1030038_PCT, UV1030039_PCT, UV1030040_PCT, UV1030041_PCT, UV1030042_PCT, UV1030043_PCT, UV1030044_PCT, UV1030045_PCT, UV1030046_PCT) %>% 
   mutate(v04 = rowSums(across(where(is.numeric)))) %>%
   select(OA, v04)
 
@@ -682,7 +664,7 @@ v36 <- UV402 %>% select(OA, UV4020007_PCT, UV4020008_PCT, UV4020009_PCT) %>%
   select(OA, v36)
 
 # v37 - Ownership or shared ownership
-v37 <- UV402 %>% select(OA, UV4040002_PCT, UV4040005_PCT, UV4040006_PCT) %>% 
+v37 <- UV404 %>% select(OA, UV4040002_PCT, UV4040005_PCT, UV4040006_PCT) %>% 
   mutate(v37 = rowSums(across(where(is.numeric)))) %>%
   select(OA, v37)
 
@@ -720,7 +702,7 @@ v49 <- UV604 %>% select(OA, UV6040004_PCT, UV6040005_PCT) %>%
     reduce(left_join, by = "OA")
   
   # Remove unwanted tibble
-  rm(list_of_dfs)
+  rm(list=c("v02", "v03","v04","v05","v06","v07","v20","v22","v26","v28","v29","v36","v37","v44","v45","v47","v48","v49"))
   
   
   
@@ -768,6 +750,11 @@ v09 <- ni033 %>% select(OA, ni0330004_PCT, ni0330005_PCT) %>%
   mutate(v09 = rowSums(across(where(is.numeric)))) %>%
   select(OA, v09)
 
+# v12 - Bangladeshi (these are not recorded for NI as the population is so low - replaced by zeros)
+v12 <- ni033 %>% select(OA) %>% 
+  mutate(v12 = 0) %>%
+  select(OA, v12)
+
 # v20 - Cannot speak English well or at all
 v20 <- ni056 %>% select(OA, ni0560005_PCT, ni0560006_PCT) %>% 
   mutate(v20 = rowSums(across(where(is.numeric)))) %>%
@@ -796,14 +783,14 @@ v45 <- ni110 %>% select(OA,ni1100003_PCT, ni1100004_PCT, ni1100005_PCT) %>%
 
 # Combined variables for Northern Ireland
 # List of data
-list_of_dfs <- list(v02, v03,v04,v05,v06,v07,v08,v09,v20,v26,v29,v36,v45)
+list_of_dfs <- list(v02, v03,v04,v05,v06,v07,v08,v09,v12,v20,v26,v29,v36,v45)
 
 # Combine
 combined_Northern_Ireland <- list_of_dfs %>%
   reduce(left_join, by = "OA")
 
 # Remove unwanted tibble
-rm(list_of_dfs)
+rm(list=c("v02", "v03","v04","v05","v06","v07","v08","v09","v12","v20","v26","v29","v36","v45"))
 
 
 
@@ -829,21 +816,21 @@ Scotland <- combined_Scotland %>%
 Northern_Ireland <- combined_Northern_Ireland %>%
   left_join(PCT_NI)
 
-# Order the columns consistently
+# Order the columns consistently (this excludes V40 and V41 which are not included in the UK model)
 England_and_Wales %<>%
-select(v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v40, v41, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
+select(OA,v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
 
 Scotland %<>%
-select(v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v40, v41, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
+select(OA,v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
 
 Northern_Ireland %<>%
-select(v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v40, v41, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
+select(OA,v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23, v24, v25, v26, v27, v28, v29, v30, v31, v32, v33, v34, v35, v36, v37, v38, v39, v43, v44, v45, v46, v47, v48, v49, v50, v51, v52, v53, v54, v55, v56, v57, v58, v59, v60)
 
 # Bind the rows and append disability and density data
 
 OAC_Input <- England_and_Wales %>%
                 bind_rows(Scotland) %>%
-                bind_rpws(Northern_Ireland) %>%
+                bind_rows(Northern_Ireland)%>%
                 left_join(Density_UK) %>%
                 left_join(disability_UK)
 
@@ -852,21 +839,107 @@ OAC_Input <- England_and_Wales %>%
 # Calculate the Inverse hyperbolic sine and range standardize
 #---------
 
-OAC_Input %<>%
+OAC_Input_IHS <- OAC_Input %>%
   mutate_at(vars(-1), ~asinh(.)) %>%
   mutate_at(vars(-1), ~rescale(.))
 
 # Save the raw input data
 write_parquet(OAC_Input, "./data/OAC_Input.parquet")
+write_parquet(OAC_Input_IHS, "./data/OAC_Input_IHS.parquet")
 
 
 ############################################################
 # Create Supergroup Clusters
 ############################################################
 
-h2o.init(max_mem_size="30G")
-OAC_h20 <- as.h2o(OAC_Input)
-v_used <-  colnames(OAC_Input)[-1]
+# Set up back end
+num_cores <- parallel::detectCores() # Detect number of cores on machine
+
+# Create and register the cluster
+cl <- parallel::makeCluster(num_cores - 1) # leave 1 core free
+doParallel::registerDoParallel(cl)
+
+
+# Clustering Function
+kmeans_func <- function(x) {
+  
+  set.seed(x) # Ensures that each iteration is reproducible.
+  
+  # Subset the data columns
+  data_for_cluster <- OAC_Input_IHS[, v_used]
+  
+  # Run a single kmeans
+  #   k=7, iter.max=1000, nstart=1 are used here to mimic "init='Random', max_iterations=1000" 
+  km_model <- kmeans(
+    x         = data_for_cluster,
+    centers   = 7,
+    iter.max  = 1000,
+    nstart    = 1
+  )
+  
+  # Total Within-Cluster Sum of Squares
+  wss_value <- sum(km_model$withinss)
+  
+  list(results = km_model, wss = wss_value)
+}
+
+# ==================================================
+# RUN 1000 ITERATIONS IN PARALLEL
+# ==================================================
+ptm <- proc.time()
+results_list <- foreach(i = 1:1000) %dopar% {
+  kmeans_func(i)
+}
+proc.time() - ptm
+
+# Stop the parallel cluster (no longer needed)
+stopCluster(cl)
+
+# ==================================================
+# FIND BEST RESULT BY WSS
+# ==================================================
+best_result <- reduce(results_list, function(a, b) {
+  if(b$wss < a$wss) b else a
+})
+
+# Extract the best kmeans model and its WSS
+results <- best_result$results
+wss     <- best_result$wss
+
+# ==================================================
+# CREATE CLUSTER ASSIGNMENTS
+# ==================================================
+cluster_assignments <- OAC_Input %>%
+  select(OA)
+
+# The cluster memberships are in 'results$cluster'
+results_lookup <- tibble(cluster = results$cluster)
+
+cluster_assignments <- bind_cols(cluster_assignments, results_lookup)
+
+# ==================================================
+# FINAL OUTPUT
+# ==================================================
+head(cluster_assignments)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+h2o.init(max_mem_size="20G")
+OAC_h20 <- as.h2o(OAC_Input_IHS)
+v_used <-  colnames(OAC_Input_IHS)[-1]
 
 # Clustering Function
 kmeans_func <- function(x) {
