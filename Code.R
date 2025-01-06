@@ -156,7 +156,7 @@ for (ct_tmpID in C_Table_Name_List) {
   # Calculate Percentages
   CT_tmp %<>%
     mutate_at(vars(-1:-2), list(PCT = ~(. / !!sym(paste0(ct_tmpID,"0001"))*100))) %>%
-    mutate_at(vars(ends_with("PCT")), ~ ifelse(is.nan(.), 0, .)) # this is needed to catch 4 OA (S00150454,S00175452,S00176350,S00178567) where denominators are 0 in UV604 and ts063
+   mutate_at(vars(ends_with("PCT")), ~ ifelse(is.nan(.), 0, .)) # this is needed to catch 4 OA (S00150454,S00175452,S00176350,S00178567) where denominators are 0 in UV604 and ts063
   
   assign(ct_tmpID,CT_tmp)
   rm(ct_tmpID,CT_tmp)
@@ -448,14 +448,11 @@ PCT_EW %<>%
 # Scotland
 
 
-# This is a dummy variable that is needed to replace the Address 1 year ago is 
-# the same as the address of enumeration, which will be included at Data Zone
-# level when the Scotland table builder is available. For now this is just a
-# dummy variable
+# This is a surrogate variable included at Ward
+# level using the Scotland table builder.
+# The OA level variable is created in Scotland_Ward.R
 
-UV213 <- UV802 %>%
-  select(OA) %>%
-  mutate(UV2130001_PCT = 0)
+UV213 <- read_csv("./data/UV213.csv")
 
 # Get a list of input variables that are not combinations or non percentages
 v_s <- variable_lookup %>%
@@ -854,104 +851,89 @@ write_parquet(OAC_Input_IHS, "./data/OAC_Input_IHS.parquet")
 # Create Supergroup Clusters
 ############################################################
 
-# Set up back end
-num_cores <- parallel::detectCores() # Detect number of cores on machine
 
-# Create and register the cluster
-cl <- parallel::makeCluster(num_cores - 1) # leave 1 core free
-doParallel::registerDoParallel(cl)
+OAC_Input_IHS <- read_parquet("./data/OAC_Input_IHS.parquet")
+
+OAC_Input <- read_parquet("./data/OAC_Input.parquet")
 
 
-# Clustering Function
-kmeans_func <- function(x) {
+
+####################### charts
+
+# Create a new column called 'country' from the first letter of the 'OA' column
+OAC_Input <- OAC_Input %>%
+  mutate(country = substr(OA, 1, 1))
+
+# Identify all columns that start with 'v'
+var_list <- grep("^v", names(OAC_Input), value = TRUE)
+
+# Loop over each of those columns and create boxplots, then save as PNG
+
+
+
+for (var in var_list) {
   
-  set.seed(x) # Ensures that each iteration is reproducible.
   
-  # Subset the data columns
-  data_for_cluster <- OAC_Input_IHS[, v_used]
+  #whisker_stats <- boxplot.stats(OAC_Input[[var]], coef = 1.5)$stats
+  #lower_extreme <- whisker_stats[1]
+  #upper_extreme <- whisker_stats[5]
   
-  # Run a single kmeans
-  #   k=7, iter.max=1000, nstart=1 are used here to mimic "init='Random', max_iterations=1000" 
-  km_model <- kmeans(
-    x         = data_for_cluster,
-    centers   = 7,
-    iter.max  = 1000,
-    nstart    = 1
+  
+  # Construct the ggplot
+  p <- ggplot(OAC_Input, aes(x = country, y = .data[[var]])) +
+    #geom_boxplot(outlier.shape = NA) +
+    geom_boxplot() +
+    #coord_cartesian(ylim = c(lower_extreme, 
+    #                         upper_extreme)) +
+    labs(
+      title = paste("Boxplot of", var, "by country"),
+      x = "Country",
+      y = var
+    ) +
+    theme_minimal()
+  
+  # Save plot to the 'plot' directory
+  ggsave(
+    filename = paste0("plot/", var, ".png"),
+    plot     = p,
+    width    = 6,
+    height   = 4,
+    dpi      = 300,
+    bg = 'white'
   )
-  
-  # Total Within-Cluster Sum of Squares
-  wss_value <- sum(km_model$withinss)
-  
-  list(results = km_model, wss = wss_value)
 }
 
-# ==================================================
-# RUN 1000 ITERATIONS IN PARALLEL
-# ==================================================
-ptm <- proc.time()
-results_list <- foreach(i = 1:1000) %dopar% {
-  kmeans_func(i)
-}
-proc.time() - ptm
 
-# Stop the parallel cluster (no longer needed)
-stopCluster(cl)
 
-# ==================================================
-# FIND BEST RESULT BY WSS
-# ==================================================
-best_result <- reduce(results_list, function(a, b) {
-  if(b$wss < a$wss) b else a
-})
-
-# Extract the best kmeans model and its WSS
-results <- best_result$results
-wss     <- best_result$wss
-
-# ==================================================
-# CREATE CLUSTER ASSIGNMENTS
-# ==================================================
-cluster_assignments <- OAC_Input %>%
-  select(OA)
-
-# The cluster memberships are in 'results$cluster'
-results_lookup <- tibble(cluster = results$cluster)
-
-cluster_assignments <- bind_cols(cluster_assignments, results_lookup)
-
-# ==================================================
-# FINAL OUTPUT
-# ==================================================
-head(cluster_assignments)
+###################
 
 
 
 
-
-
-
-
-
-
-
-
-
-
+# This requires a  Java Runtime Environment (JRE)
+# On ubuntu docker - run the following in the terminal
+# sudo apt update
+# sudo apt install default-jre
 
 
 h2o.init(max_mem_size="20G")
 OAC_h20 <- as.h2o(OAC_Input_IHS)
 v_used <-  colnames(OAC_Input_IHS)[-1]
 
+
+#v_used <- v_used[ v_used != "v09" ] # removed by itself y
+#v_used <- v_used[ v_used != "v32" ] 
+#v_used <- v_used[ v_used != "v48" ] # removed by itself Y; removed with v48 Y
+
 # Clustering Function
 kmeans_func <- function(x) {
-  results_run <- h2o.kmeans(training_frame = OAC_h20, k = 7, x = v_used, init = "Random",max_iterations=1000,standardize = FALSE)
+  results_run <- h2o.kmeans(training_frame = OAC_h20, k = 8, x = v_used, init = "Random",max_iterations=1000,standardize = FALSE)
   list(results = results_run, wss = h2o.tot_withinss(results_run))
 }
 
 ptm <- proc.time()
 # Apply the function for each element in the vector
-results_list <- map(1:1000, ~kmeans_func(.x))
+results_list <- map(1:100, ~kmeans_func(.x))
 proc.time() - ptm
 
 
@@ -965,7 +947,7 @@ results <- best_result$results
 wss <- best_result$wss
 
 # Cluster Assignments
-cluster_assignments <- OAC_Input %>%
+cluster_assignments <- OAC_Input_IHS %>%
   select(OA)
   
 results_lookup <- h2o.predict(results, OAC_h20) %>%
@@ -975,19 +957,32 @@ cluster_assignments %<>%
   bind_cols(results_lookup)
 
 
+write_parquet(cluster_assignments, "./data/OAC_SuperGroup.parquet")
 
-
-
-
-
-cluster_assignments_SF <- OA_2021_Boundary %>%
- left_join(cluster_assignments, by = c("OA21CD" = "OA")) %>%
+cluster_assignments_SF <- OA_2021_22_Boundaries %>%
+ left_join(cluster_assignments) %>%
    filter(!is.na(predict))
 
-st_write(cluster_assignments_SF, "./map/LOAC_SuperGroup.gpkg", driver = "GPKG")
-write_parquet(cluster_assignments, "./data/LOAC_SuperGroup.parquet")
+st_write(cluster_assignments_SF, "./map/OAC_SuperGroup.gpkg", driver = "GPKG")
 
 h2o.shutdown()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ############################################################
 # Create Group Clusters
