@@ -100,8 +100,6 @@ st_write(OA_2021_22_Boundaries,"OA_2021_22_Boundaries.gpkg")
 #  Pull in census 2021 data, calculate PCT
 #---------
 
-# SWITCH FOR NEW LOCATION OF DATA
-
 ############################################################
 # Create Input Measures ####################################
 ############################################################
@@ -630,6 +628,12 @@ v07 <- UV103 %>% select(OA, UV1030087_PCT, UV1030088_PCT, UV1030089_PCT, UV10300
   mutate(v07 = rowSums(across(where(is.numeric)))) %>%
   select(OA, v07)
 
+# v09 - Country of birth: Europe: EU countries (this has a slightly different
+# calculation to E, NI, W)
+v09 <- UV204b %>% select(OA, UV204b0022_PCT, UV204b0043_PCT) %>% 
+  mutate(v09 = UV204b0022_PCT - UV204b0043_PCT) %>%
+  select(OA, v09)
+
 # v20 - Cannot speak English well or at all
 v20 <- UV210 %>% select(OA, UV2100010_PCT, UV2100011_PCT) %>% 
   mutate(v20 = rowSums(across(where(is.numeric)))) %>%
@@ -692,14 +696,14 @@ v49 <- UV604 %>% select(OA, UV6040004_PCT, UV6040005_PCT) %>%
 
 # Combined variables for Scotland
   # List of data
-  list_of_dfs <- list(v02, v03,v04,v05,v06,v07,v20,v22,v26,v28,v29,v36,v37,v44,v45,v47,v48,v49)
+  list_of_dfs <- list(v02, v03,v04,v05,v06,v07,v09,v20,v22,v26,v28,v29,v36,v37,v44,v45,v47,v48,v49)
   
   # Combine
   combined_Scotland <- list_of_dfs %>%
     reduce(left_join, by = "OA")
   
   # Remove unwanted tibble
-  rm(list=c("v02", "v03","v04","v05","v06","v07","v20","v22","v26","v28","v29","v36","v37","v44","v45","v47","v48","v49"))
+  rm(list=c("v02", "v03","v04","v05","v06","v07","v09","v20","v22","v26","v28","v29","v36","v37","v44","v45","v47","v48","v49"))
   
   
   
@@ -907,9 +911,6 @@ for (var in var_list) {
 
 ###################
 
-
-
-
 # This requires a  Java Runtime Environment (JRE)
 # On ubuntu docker - run the following in the terminal
 # sudo apt update
@@ -921,9 +922,9 @@ OAC_h20 <- as.h2o(OAC_Input_IHS)
 v_used <-  colnames(OAC_Input_IHS)[-1]
 
 
-#v_used <- v_used[ v_used != "v09" ] # removed by itself y
+#v_used <- v_used[ v_used != "v09" ] 
 #v_used <- v_used[ v_used != "v32" ] 
-#v_used <- v_used[ v_used != "v48" ] # removed by itself Y; removed with v48 Y
+#v_used <- v_used[ v_used != "v48" ] 
 
 # Clustering Function
 kmeans_func <- function(x) {
@@ -969,7 +970,27 @@ h2o.shutdown()
 
 
 
+##################################################
+# Compare Final UK OAC with Preview UK OAC
 
+
+OA_11_21_22_lookup <- read_parquet("./data/OA_11_21_22_lookup.parquet")
+
+UK_OAC_Preview <- read_csv("./data/UKOAC/UKOAC21_assignment.csv")
+
+
+
+OA_11_21_22_lookup %>%
+  left_join(cluster_assignments, by = c("OA" = "OA")) %>%
+  left_join(UK_OAC_Preview, by = c("OA_OAC_Preview" = "Geography_Code" ))
+
+
+
+
+
+
+
+##################################################
 
 
 
