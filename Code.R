@@ -634,8 +634,13 @@ v09 <- UV204b %>% select(OA, UV204b0022_PCT, UV204b0043_PCT) %>%
   mutate(v09 = UV204b0022_PCT - UV204b0043_PCT) %>%
   select(OA, v09)
 
+# v17 - 	Ethnic group: Black
+v17 <- UV201 %>% select(OA, UV2010016_PCT, UV2010019_PCT) %>% 
+  mutate(v17 = rowSums(across(where(is.numeric)))) %>%
+  select(OA, v17)
+
 # v20 - Cannot speak English well or at all
-v20 <- UV210 %>% select(OA, UV2100010_PCT, UV2100011_PCT) %>% 
+v20 <- UV210 %>% select(OA, UV2100002, UV2100006,UV2100007,UV2100008,UV2100010,UV2100011) %>% 
   mutate(v20 = rowSums(across(where(is.numeric)))) %>%
   select(OA, v20)
 
@@ -696,14 +701,14 @@ v49 <- UV604 %>% select(OA, UV6040004_PCT, UV6040005_PCT) %>%
 
 # Combined variables for Scotland
   # List of data
-  list_of_dfs <- list(v02, v03,v04,v05,v06,v07,v09,v20,v22,v26,v28,v29,v36,v37,v44,v45,v47,v48,v49)
+  list_of_dfs <- list(v02, v03,v04,v05,v06,v07,v09,v17,v20,v22,v26,v28,v29,v36,v37,v44,v45,v47,v48,v49)
   
   # Combine
   combined_Scotland <- list_of_dfs %>%
     reduce(left_join, by = "OA")
   
   # Remove unwanted tibble
-  rm(list=c("v02", "v03","v04","v05","v06","v07","v09","v20","v22","v26","v28","v29","v36","v37","v44","v45","v47","v48","v49"))
+  rm(list=c("v02", "v03","v04","v05","v06","v07","v09","v17","v20","v22","v26","v28","v29","v36","v37","v44","v45","v47","v48","v49"))
   
   
   
@@ -980,13 +985,29 @@ UK_OAC_Preview <- read_csv("./data/UKOAC/UKOAC21_assignment.csv")
 
 
 
-OA_11_21_22_lookup %>%
+OA_11_21_22_lookup %<>%
   left_join(cluster_assignments, by = c("OA" = "OA")) %>%
   left_join(UK_OAC_Preview, by = c("OA_OAC_Preview" = "Geography_Code" ))
 
 
+# Step 1: Calculate counts
+counts <- OA_11_21_22_lookup %>%
+  count(Supergroup, predict)
 
+# Step 2: Calculate percentages
+percentages <- counts %>%
+  group_by(Supergroup) %>%
+  mutate(percentage = n / sum(n) * 100) %>%
+  ungroup()
 
+# Step 3: Combine counts and percentages into a single column
+result <- percentages %>%
+  mutate(count_percent = paste0(n, " (", round(percentage, 1), "%)")) %>%
+  select(-n, -percentage) %>%
+  pivot_wider(names_from = predict, values_from = count_percent)
+
+# View the result
+print(result)
 
 
 

@@ -15,10 +15,10 @@ v13,Ethnic group: Chinese,,Ethnicity and Origins,ts0210004,UV2010014,ni0600006
 v14,Ethnic group: Indian,,Ethnicity and Origins,ts0210005,UV2010012,ni0600005
 v15,Ethnic group: Pakistani,,Ethnicity and Origins,ts0210006,UV2010011,ni0600008
 v16,Ethnic group: Other Asian,,Ethnicity and Origins,ts0210007,UV2010015,ni0600010
-v17,Ethnic group: Black,,Ethnicity and Origins,ts0210008,UV2010021,ni0590004
+v17,Ethnic group: Black,,Ethnicity and Origins,ts0210008,UV2010016 & UV2010019,ni0590004
 v18,Ethnic group: Mixed or Multiple ethnic groups,,Ethnicity and Origins,ts0210012,UV2010009,ni0600013
 v19,Ethnic group: White,,Ethnicity and Origins,ts0210017,UV2010002,ni0600002
-v20,Cannot speak English well or at all,,Ethnicity and Origins,ts0290006 & ts0290007,UV2100010 & UV2100011,ni0560005 & ni0560006
+v20,Cannot speak English well or at all,,Ethnicity and Origins,ts0290006 & ts0290007,UV2100002 & UV2100006 & UV2100007 & UV2100008 & UV2100010 & UV2100011,ni0560005 & ni0560006
 v21,No religion,,Ethnicity and Origins,ts0300002,UV2050012,ni1720006
 v22,Christian,,Ethnicity and Origins,ts0300003,UV2050002 & UV2050003 & UV2050004,ni1720002
 v23,Other religion,,Ethnicity and Origins,ts0300009,UV2050011,ni1720005
