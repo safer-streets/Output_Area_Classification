@@ -33,6 +33,8 @@ library(arrow)
 library(foreach)
 library(doParallel)
 library(purrr)
+library(ggalluvial)
+
 #library(ggpubr)
 #library(patchwork)
 #library(tcltk2)
@@ -927,19 +929,15 @@ OAC_h20 <- as.h2o(OAC_Input_IHS)
 v_used <-  colnames(OAC_Input_IHS)[-1]
 
 
-#v_used <- v_used[ v_used != "v09" ] 
-#v_used <- v_used[ v_used != "v32" ] 
-#v_used <- v_used[ v_used != "v48" ] 
-
 # Clustering Function
 kmeans_func <- function(x) {
-  results_run <- h2o.kmeans(training_frame = OAC_h20, k = 8, x = v_used, init = "Random",max_iterations=1000,standardize = FALSE)
+  results_run <- h2o.kmeans(training_frame = OAC_h20, k = 7, x = v_used, init = "Random",max_iterations=1000,standardize = FALSE)
   list(results = results_run, wss = h2o.tot_withinss(results_run))
 }
 
 ptm <- proc.time()
-# Apply the function for each element in the vector
-results_list <- map(1:100, ~kmeans_func(.x))
+# Apply the function 10k times
+results_list <- map(1:10000, ~kmeans_func(.x))
 proc.time() - ptm
 
 
@@ -977,30 +975,35 @@ h2o.shutdown()
 
 ##################################################
 # Compare Final UK OAC with Preview UK OAC
+##################################################
 
+# --------------------------------
+# % Table
+# --------------------------------
+cluster_assignments <- read_parquet("./data/OAC_SuperGroup.parquet")
 
 OA_11_21_22_lookup <- read_parquet("./data/OA_11_21_22_lookup.parquet")
 
 UK_OAC_Preview <- read_csv("./data/UKOAC/UKOAC21_assignment.csv")
-
-
+OA_11_21_22_lookup %<>% 
+  filter(!is.na(OA))
 
 OA_11_21_22_lookup %<>%
   left_join(cluster_assignments, by = c("OA" = "OA")) %>%
   left_join(UK_OAC_Preview, by = c("OA_OAC_Preview" = "Geography_Code" ))
 
 
-# Step 1: Calculate counts
+# Calculate counts
 counts <- OA_11_21_22_lookup %>%
   count(Supergroup, predict)
 
-# Step 2: Calculate percentages
+# Calculate percentages
 percentages <- counts %>%
   group_by(Supergroup) %>%
   mutate(percentage = n / sum(n) * 100) %>%
   ungroup()
 
-# Step 3: Combine counts and percentages into a single column
+# Combine counts and percentages into a single column
 result <- percentages %>%
   mutate(count_percent = paste0(n, " (", round(percentage, 1), "%)")) %>%
   select(-n, -percentage) %>%
@@ -1010,18 +1013,67 @@ result <- percentages %>%
 print(result)
 
 
+# --------------------------------
+# % Alluvial Plot
+# --------------------------------
+
+cluster_assignments <- read_parquet("./data/OAC_SuperGroup.parquet")
+OA_11_21_22_lookup <- read_parquet("./data/OA_11_21_22_lookup.parquet")
+UK_OAC_Preview <- read_csv("./data/UKOAC/UKOAC21_assignment.csv")
+
+OA_11_21_22_lookup %<>%
+  left_join(cluster_assignments, by = c("OA" = "OA")) %>%
+  left_join(UK_OAC_Preview, by = c("OA_OAC_Preview" = "Geography_Code" ))
+
+# Define the labels for Supergroups
+supergroup_labels <- c(
+  "1: Retired Professionals",
+  "2: Suburbanites\n& Peri-Urbanites",
+  "3: Multicultural\n& Educated Urbanites",
+  "4: Low-Skilled Migrant\n& Student Communities",
+  "5: Ethnically Diverse\nSuburban Professionals",
+  "6: Baseline UK",
+  "7: Semi &\nUn-Skilled Workforce",
+  "8: Legacy Communities"
+)
+
+# Replace Supergroup numbers with labels
+OA_11_21_22_lookup <- OA_11_21_22_lookup %>%
+  mutate(Supergroup = factor(Supergroup, levels = 1:8, labels = supergroup_labels))
+
+# Create cross-tabulation
+cross_tab <- OA_11_21_22_lookup %>%
+  count(Supergroup, predict) %>%
+  rename(Freq = n)
+
+# Plot flows using ggalluvial
+plot <- ggplot(cross_tab, aes(
+  axis1 = Supergroup,
+  axis2 = predict,
+  y = Freq
+)) +
+  geom_alluvium(aes(fill = Supergroup)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum)), size= 2.5) +
+  labs(
+    x = NULL,
+    y = NULL
+  ) +
+  scale_fill_manual(values = c("#C7BB9D","#6DAB57","#E23921","#E38ABC","#E88631","#F2CB4C","#5881F6","#8C569E")) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),  # Remove x-axis tick labels
+    axis.text.y = element_blank(),  # Remove y-axis tick labels
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
+  )
+
+ggsave("./plot/preview_V_new.png", plot = plot, device = "png", width = 6, height = 4, dpi = 300)
+
 
 ##################################################
-
-
-
-
-
-
-
-
-
-
+##################################################
 
 
 
