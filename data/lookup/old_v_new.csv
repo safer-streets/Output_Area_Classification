@@ -1,0 +1,61 @@
+﻿Final,Final_Variable_Name,Preview,Preview_Variable_Name
+v01,Usual residents per square kilometre,v12,Usual residents per square kilometre
+v02,Aged 4 years and under,v13,Aged 4 years and under
+v03,Aged 5 - 14 years,v14,Aged 5 to 14
+v04,Aged 25 - 44 years,v15,Aged 25 to 44
+v05,Aged 45 - 64 years,v16,Aged 45 to 64
+v06,Aged 65 - 84 years,v17,Aged 65 to 84
+v07,Aged 85 years and over,v18,Aged 85 years and over
+v08,Country of birth: Europe: United Kingdom,v08,Europe: United Kingdom
+v09,Country of birth: Europe: EU countries,v09,Europe: EU countries
+v10,Country of birth: Europe: Non-EU countries,v10,Europe: Non-EU countries
+v11,Country of birth: Africa,v11,Africa
+v12,Ethnic group: Bangladeshi,v20,Bangladeshi
+v13,Ethnic group: Chinese,v21,Chinese
+v14,Ethnic group: Indian,v22,Indian
+v15,Ethnic group: Pakistani,v23,Pakistani
+v16,Ethnic group: Other Asian,v24,Other Asian
+v17,Ethnic group: Black,v25,Black
+v18,Ethnic group: Mixed or Multiple ethnic groups,v26,Mixed or Multiple ethnic groups
+v19,Ethnic group: White,v27,White
+v20,Cannot speak English well or at all,v29,Cannot speak English well or at all
+v21,No religion,v30,No religion
+v22,Christian,v31,Christian
+v23,Other religion,v32,Other religion
+v24,Never married and never registered a civil partnership,v02,Never married and never registered a civil partnership
+v25,Married or in a registered civil partnership,v03,Married or in a registered civil partnership
+v26,Separated or divorced,v04,Separated or divorced
+v27,One-person household,v05,One-person household
+v28,Families with no children,v06,Families with no children
+v29,Families with dependent children,v07,Families dependent children
+v30,All household members have the same ethnic group,v28,All household members have the same ethnic group
+v31,Lives in a communal establishment,v01,Lives in a communal establishment
+v32,Address 1 year ago is the same as the address of enumeration,v19,Same address year ago
+v33,Detached house or bungalow,v35,Detached
+v34,Semi-detached house or bungalow,v36,Semi-detached
+v35,Terraced (including end-terrace) house or bungalow,v37,Terraced (including end-terrace)
+v36,Flat maisonette or apartment,v38,Lives in a flat
+v37,Ownership or shared ownership,v44,Ownership or shared ownership
+v38,Social rented,v42,Social rented
+v39,Private rented,v43,Private rented
+v40,Occupancy rating of rooms: +1 or more,v40,Under occupation
+v41,Occupancy rating of rooms: -1 or less,v41,Overcrowding
+v42,SIR,v33,Standardised Illness Ratio
+v43,Provides unpaid care,v34,Provides unpaid care
+v44,2 or more cars or vans in household,v39,Two or more cars or vans
+v45,Highest level of qualification: Level 1- 2 or Apprenticeship,v58,"Level 1, Level 2 or Apprenticeship"
+v46,Highest level of qualification: Level 3 qualifications,v59,Level 3 qualifications
+v47,Highest level of qualification: Level 4 qualifications or above,v60,Level 4 qualifications or above
+v48,Hours worked: Part-time,v45,Part-time
+v49,Hours worked: Full-time,v46,Full-time
+v50,NS-SeC: L15 Full-time students,v47,L15 Full-time students
+v51,SOC: 1. Managers directors and senior officials,v48,"1. Managers, directors and senior officials"
+v52,SOC: 2. Professional occupations,v49,2. Professional occupations
+v53,SOC: 3. Associate professional and technical occupations,v50,3. Associate professional and technical occupations
+v54,SOC: 4. Administrative and secretarial occupations,v51,4. Administrative and secretarial occupations
+v55,SOC: 5. Skilled trades occupations,v52,5. Skilled trades occupations
+v56,SOC: 6. Caring leisure and other service occupations,v53,"6. Caring, leisure and other service occupations"
+v57,SOC: 7. Sales and customer service occupations,v54,7. Sales and customer service occupations
+v58,SOC: 8. Process plant and machine operatives,v55,"8. Process, plant and machine operatives"
+v59,SOC: 9. Elementary occupations,v56,9. Elementary occupations
+v60,Economically active: Unemployed,v57,Economically active: Unemployed
