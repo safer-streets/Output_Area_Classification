@@ -9,7 +9,8 @@
 #                                         
 #                                                        
 ###############################################################################     
-# This code was used to create the UK Output Area Classification
+# This code was used to update to the final version of the UK Output 
+# Area Classification
 # Created by the Geographic Data Service:
 # Alex Singleton, University of Liverpool
 # Owen Goodwin, University of Liverpool
@@ -30,19 +31,9 @@ library(magrittr)
 library(janitor)
 library(scales)
 library(arrow)
-library(foreach)
-library(doParallel)
 library(purrr)
 library(ggalluvial)
-
-#library(ggpubr)
-#library(patchwork)
-#library(tcltk2)
-#library(ggspatial)
-#library(osmdata)
-#library(ggrepel)
-#library(officer)
-#library(officedown)
+library(h2o)
 
 #---------
 # Import spatial data
@@ -229,7 +220,7 @@ mutate(v01 = if_else(OA == "E00187556", 0, v01)) #Zero E00187556 to match ONS of
 
 # England & Wales (Files from https://www.ons.gov.uk/datasets/create)
 # disability_EW <- read_csv("./data/census/E_W_Disability.csv")
-# For size, these data were chunked using Chunk_CSV.R
+# For size, these data were chunked using ./extra_code/Chunk_CSV.R
 # All usual residents; Age: 6 Categories; Disability: 3 Categories
 # 183,765 out of 188,880 areas available
 disability_EW <- map_dfr(c("./data/census/E_W_Disability_chunk_1.csv",
@@ -450,7 +441,7 @@ PCT_EW %<>%
 
 # This is a surrogate variable included at Ward
 # level using the Scotland table builder.
-# The OA level variable is created in Scotland_Ward.R
+# The OA level variable is created in ./extra_code/Scotland_Ward.R
 
 UV213 <- read_csv("./data/UV213.csv")
 
@@ -858,171 +849,207 @@ write_parquet(OAC_Input, "./data/OAC_Input.parquet")
 write_parquet(OAC_Input_IHS, "./data/OAC_Input_IHS.parquet")
 
 
-############################################################
-# Create Supergroup Clusters
-############################################################
+# ---------------------------------------------------------
+# Checks the comparability of Preview and Final OAC inputs
+# ---------------------------------------------------------
+# Preview OAC relates to the currently disseminated ONS model
+
+# Creates lookups to translate Preview and Final OAC headings
+old_new_lookup <- read_csv("./data/lookup/old_v_new.csv") # manually created to align variable names
+OAC_Preview_Variables <- read_csv("https://github.com/jakubwyszomierski/OAC2021-2/raw/refs/heads/main/Data/Lookups/OAC_variables.csv")
+
+OAC_Preview_Variables %<>%
+  left_join(old_new_lookup, by = c("encoding" = "Preview"))
+
+OAC_Preview_Variables %<>%
+  select(Code,Final)
+
+# Get Preview OAC input data and adjust variable names to match Final OAC
+
+Aged_Scotland_PCT <- read_csv("./data/UKOAC/hybrid_UK_2021_aged_Scotland_prop_perc.csv")
+rename_vector_PCT <- setNames(OAC_Preview_Variables$Code, OAC_Preview_Variables$Final)
+
+Aged_Scotland_PCT %<>%
+  rename(!!!rename_vector_PCT) %>%
+  select(Geography_Code,starts_with("v")) %>%
+  rename(OA = Geography_Code)
 
 
-OAC_Input_IHS <- read_parquet("./data/OAC_Input_IHS.parquet")
+# Get Final OAC input data
 
 OAC_Input <- read_parquet("./data/OAC_Input.parquet")
 
+# Transform and Standardise both input data
 
-
-####################### charts
-
-# Create a new column called 'country' from the first letter of the 'OA' column
 OAC_Input <- OAC_Input %>%
-  mutate(country = substr(OA, 1, 1))
+  mutate_at(vars(-1), ~asinh(.)) %>%
+  mutate_at(vars(-1), ~rescale(.))
 
-# Identify all columns that start with 'v'
-var_list <- grep("^v", names(OAC_Input), value = TRUE)
-
-# Loop over each of those columns and create boxplots, then save as PNG
-
+Aged_Scotland_PCT <- Aged_Scotland_PCT %>%
+  mutate_at(vars(-1), ~asinh(.)) %>%
+  mutate_at(vars(-1), ~rescale(.))
 
 
-for (var in var_list) {
+# Add a new Country column to each
+OAC_Input_L <- OAC_Input %>%
+  mutate(Country = substring(OA, 1, 1))  %>%
+  select(OA,{
+    # Pick out all column names that begin with "v"
+    v_cols <- grep("^v", names(.), value = TRUE)
+    # Sort them, then append the rest of the columns (in original order)
+    c(sort(v_cols), setdiff(names(.), v_cols))
+  })
+
+Aged_Scotland_PCT_L <- Aged_Scotland_PCT %>%
+  mutate(Country = substring(OA, 1, 1))    %>%
+  select(OA,{
+    # Pick out all column names that begin with "v"
+    v_cols <- grep("^v", names(.), value = TRUE)
+    # Sort them, then append the rest of the columns (in original order)
+    c(sort(v_cols), setdiff(names(.), v_cols))
+  })
+
+
+# Transform data to long format and combine for plotting
+
+OAC_Input_L %<>%
+  pivot_longer(cols = starts_with("v"), 
+               names_to = "variable", 
+               values_to = "value") %>%
+  mutate(dataset = "Final OAC")
+
+Aged_Scotland_PCT_L %<>%
+  pivot_longer(cols = starts_with("v"), 
+               names_to = "variable", 
+               values_to = "value") %>%
+  mutate(dataset = "Preview OAC")
+
+
+df_combined_PCT <- OAC_Input_L %>%
+  bind_rows(Aged_Scotland_PCT_L)
+
+
+# Create comparative box and whisker plots for the two datasets and variables
+
+for (col_name in unique(Aged_Scotland_PCT$variable)) {
   
+  # Filter the long data for the current variable
+  df_var <- df_combined_PCT %>%
+    filter(variable == col_name)
   
-  #whisker_stats <- boxplot.stats(OAC_Input[[var]], coef = 1.5)$stats
-  #lower_extreme <- whisker_stats[1]
-  #upper_extreme <- whisker_stats[5]
-  
-  
-  # Construct the ggplot
-  p <- ggplot(OAC_Input, aes(x = country, y = .data[[var]])) +
-    #geom_boxplot(outlier.shape = NA) +
+  p_var <- ggplot(df_var, aes(x = dataset, y = value, fill = Country )) +
     geom_boxplot() +
-    #coord_cartesian(ylim = c(lower_extreme, 
-    #                         upper_extreme)) +
-    labs(
-      title = paste("Boxplot of", var, "by country"),
-      x = "Country",
-      y = var
-    ) +
+    labs(title = paste("Boxplot for", col_name),
+         x = "Dataset",
+         y = col_name) +
     theme_minimal()
   
-  # Save plot to the 'plot' directory
-  ggsave(
-    filename = paste0("plot/", var, ".png"),
-    plot     = p,
-    width    = 6,
-    height   = 4,
-    dpi      = 300,
-    bg = 'white'
-  )
+  ggsave(filename = paste0("./plot/comparison/","boxplot_", col_name, ".png"),
+         plot = p_var, width = 6, height = 4,bg = "white")
 }
 
 
+# The following creates a subset of variables with comparable distributions for 
+# use in the reassignment of areas in Scotland and Northern Ireland 
 
-###################
+# These variables were deemed problematic for comparative purposes after 
+# considering the distributions.
+ex_variables <- c("v07","v09","v11","v23","v42","v60","v32","v40","v41")
 
-# This requires a  Java Runtime Environment (JRE)
-# On ubuntu docker - run the following in the terminal
-# sudo apt update
-# sudo apt install default-jre
+# Preview UK OAC - this is the current ONS classification with the addition
+# of lookups for Scotland and Northern Ireland which used modeled data.
+# These data are available from: https://data.cdrc.ac.uk/dataset/uk-oac
+UK_OAC_Preview <- read_csv("./data/UKOAC/UKOAC21_assignment.csv")
 
+# Append preview input data to preview clusters, and remove excluded columns
+UK_OAC_Preview %<>%
+  left_join(Aged_Scotland_PCT, by = c("Geography_Code" = "OA")) %>%
+  select(-any_of(ex_variables))
 
-h2o.init(max_mem_size="20G")
-OAC_h20 <- as.h2o(OAC_Input_IHS)
-v_used <-  colnames(OAC_Input_IHS)[-1]
+# Calculate the preview OAC sub groups means from the original data
+sub_group_mean <- UK_OAC_Preview %>%
+  group_by(Subgroup) %>%
+  summarise(across(starts_with("v"), ~ mean(.x, na.rm = TRUE))) %>%
+  select(Subgroup,{
+    # Pick out all column names that begin with "v"
+    v_cols <- grep("^v", names(.), value = TRUE)
+    # Sort them, then append the rest of the columns (in original order)
+    c(sort(v_cols), setdiff(names(.), v_cols))
+  }) %>%
+  select(-any_of(ex_variables))
 
+# Prepare final input data to enable Scotland and Northern Ireland update
+OAC_Input %<>%
+  select(OA,{
+    v_cols <- grep("^v", names(.), value = TRUE)
+    c(sort(v_cols), setdiff(names(.), v_cols))
+  }) %>%
+  select(-any_of(ex_variables))
 
-# Clustering Function
-kmeans_func <- function(x) {
-  results_run <- h2o.kmeans(training_frame = OAC_h20, k = 7, x = v_used, init = "Random",max_iterations=1000,standardize = FALSE)
-  list(results = results_run, wss = h2o.tot_withinss(results_run))
+# Create Scotland and Northern Ireland final input
+OAC_Input_S_NI <- OAC_Input %>%
+  filter(!grepl("^[EW]", OA))
+
+# Function to compute the row with smallest difference for one row of OAC_Input_S_NI
+find_closest_row <- function(input_row, sub_group_mean) {
+  # Compute row-wise difference
+  differences <- apply(sub_group_mean[,-1], 1, function(row) sum((row - input_row)^2))
+  # Get the row index with the minimum difference
+  which.min(differences)
 }
 
-ptm <- proc.time()
-# Apply the function 10k times
-results_list <- map(1:10000, ~kmeans_func(.x))
-proc.time() - ptm
+# Apply the function to all rows in OAC_Input
+closest_rows <- apply(OAC_Input_S_NI[,-1], 1, function(row) find_closest_row(row, sub_group_mean))
 
+# New Values for Northern Ireland and Scotland
+new_values <- sub_group_mean %>%
+  slice(closest_rows) %>%
+  select(Subgroup) %>%
+  bind_cols(OAC_Input_S_NI %>% select(OA)) %>%
+  mutate(Group = substr(Subgroup, 1, 2)) %>%
+  mutate(Supergroup = substr(Subgroup , 1, 1)) %>%
+  mutate(Geography_Code = OA) %>%
+  select(Geography_Code,Supergroup,Group,Subgroup)
 
-# Find the result with the minimum wss
-best_result <- reduce(results_list, function(a, b) {
-  if(b$wss < a$wss) b else a
-})
+# This reads the preview lookup and replaces Scotland and Northern Ireland
+# results with the updated clusters
 
-# Extract the best results
-results <- best_result$results
-wss <- best_result$wss
+UK_OAC_Preview <- read_csv("./data/UKOAC/UKOAC21_assignment.csv",col_types = cols(.default = "c"))
 
-# Cluster Assignments
-cluster_assignments <- OAC_Input_IHS %>%
-  select(OA)
-  
-results_lookup <- h2o.predict(results, OAC_h20) %>%
-  as_tibble()
+UK_OAC_Final <- UK_OAC_Preview %>%
+  filter(grepl("^[EW]", Geography_Code))%>%
+  bind_rows(new_values)
 
-cluster_assignments %<>%
-  bind_cols(results_lookup)
+write_parquet(UK_OAC_Final, "./data/UK_OAC_Final.parquet") # Final Lookup
 
-
-write_parquet(cluster_assignments, "./data/OAC_SuperGroup.parquet")
-
+# Final lookup geopackage
 cluster_assignments_SF <- OA_2021_22_Boundaries %>%
- left_join(cluster_assignments) %>%
-   filter(!is.na(predict))
+  left_join(UK_OAC_Final, by = c("OA" = "Geography_Code"))
 
 st_write(cluster_assignments_SF, "./map/OAC_SuperGroup.gpkg", driver = "GPKG")
-
-h2o.shutdown()
-
-
-
-##################################################
-# Compare Final UK OAC with Preview UK OAC
-##################################################
-
-# --------------------------------
-# % Table
-# --------------------------------
-cluster_assignments <- read_parquet("./data/OAC_SuperGroup.parquet")
-
-OA_11_21_22_lookup <- read_parquet("./data/OA_11_21_22_lookup.parquet")
-
-UK_OAC_Preview <- read_csv("./data/UKOAC/UKOAC21_assignment.csv")
-OA_11_21_22_lookup %<>% 
-  filter(!is.na(OA))
-
-OA_11_21_22_lookup %<>%
-  left_join(cluster_assignments, by = c("OA" = "OA")) %>%
-  left_join(UK_OAC_Preview, by = c("OA_OAC_Preview" = "Geography_Code" ))
-
-
-# Calculate counts
-counts <- OA_11_21_22_lookup %>%
-  count(Supergroup, predict)
-
-# Calculate percentages
-percentages <- counts %>%
-  group_by(Supergroup) %>%
-  mutate(percentage = n / sum(n) * 100) %>%
-  ungroup()
-
-# Combine counts and percentages into a single column
-result <- percentages %>%
-  mutate(count_percent = paste0(n, " (", round(percentage, 1), "%)")) %>%
-  select(-n, -percentage) %>%
-  pivot_wider(names_from = predict, values_from = count_percent)
-
-# View the result
-print(result)
-
 
 # --------------------------------
 # % Alluvial Plot
 # --------------------------------
 
-cluster_assignments <- read_parquet("./data/OAC_SuperGroup.parquet")
-OA_11_21_22_lookup <- read_parquet("./data/OA_11_21_22_lookup.parquet")
-UK_OAC_Preview <- read_csv("./data/UKOAC/UKOAC21_assignment.csv")
+UK_OAC_Final %<>%
+  select(Geography_Code,Supergroup) %>%
+  rename(Supergroup_New = Supergroup)
+
+UK_OAC_Preview %<>%
+  select(Geography_Code,Supergroup) %>%
+  rename(Supergroup_Old = Supergroup)
+
+# This file enables linkage of preview (which includes 2011 geography for Scotland
+# and Northern Ireland) with 2021 OA. This was created using the code in
+# 2011_2021_22_Comparison.R and is based on centroids. Some NA values are created
+# in Northern Ireland as the new Data Zones are clipped rather than the extent of
+# the realm.
+
+OA_11_21_22_lookup <- read_parquet("./data/OA_11_21_22_lookup.parquet") 
 
 OA_11_21_22_lookup %<>%
-  left_join(cluster_assignments, by = c("OA" = "OA")) %>%
+  left_join(UK_OAC_Final, by = c("OA" = "Geography_Code")) %>%
   left_join(UK_OAC_Preview, by = c("OA_OAC_Preview" = "Geography_Code" ))
 
 # Define the labels for Supergroups
@@ -1039,20 +1066,23 @@ supergroup_labels <- c(
 
 # Replace Supergroup numbers with labels
 OA_11_21_22_lookup <- OA_11_21_22_lookup %>%
-  mutate(Supergroup = factor(Supergroup, levels = 1:8, labels = supergroup_labels))
+  mutate(Supergroup_New  = factor(Supergroup_New , levels = 1:8, labels = supergroup_labels)) %>%
+  mutate(Supergroup_Old = factor(Supergroup_Old, levels = 1:8, labels = supergroup_labels))
 
 # Create cross-tabulation
 cross_tab <- OA_11_21_22_lookup %>%
-  count(Supergroup, predict) %>%
-  rename(Freq = n)
+  count(Supergroup_Old, Supergroup_New) %>%
+  rename(Freq = n) %>%
+  filter(!is.na(Supergroup_New))
+
 
 # Plot flows using ggalluvial
 plot <- ggplot(cross_tab, aes(
-  axis1 = Supergroup,
-  axis2 = predict,
+  axis1 = Supergroup_Old,
+  axis2 = Supergroup_New,
   y = Freq
 )) +
-  geom_alluvium(aes(fill = Supergroup)) +
+  geom_alluvium(aes(fill = Supergroup_Old)) +
   geom_stratum() +
   geom_text(stat = "stratum", aes(label = after_stat(stratum)), size= 2.5) +
   labs(
@@ -1069,1030 +1099,109 @@ plot <- ggplot(cross_tab, aes(
     legend.position = "none"
   )
 
-ggsave("./plot/preview_V_new.png", plot = plot, device = "png", width = 6, height = 4, dpi = 300)
-
-
-##################################################
-##################################################
-
-
-
-
-############################################################
-# Create Group Clusters
-############################################################
-
-#---------
-# Prepare the Group clustering input data
-#---------
-
-# Read the Super Group Lookup
-cluster_assignments <- read_parquet("./data/LOAC_SuperGroup.parquet")
-
-# Append data to SG lookup
-Group_Input_Data <- cluster_assignments %>%
-  left_join(OA_london)
-
-# Create a list of Group inputs split by Super Group
-SG <- Group_Input_Data %>% pull(SG)
-Group_Input_Data_Split <- split(Group_Input_Data, f = SG)
-
-#---------
-# Create Group Clusters
-#---------
-
-# Setup
-h2o.init(max_mem_size="30G")
-v_used <-  colnames(OA_london)[-1:-3]
-
-# List of input tibbles TableA to TableG along with their corresponding k values
-tables_list <- list(
-  list(tbl = Group_Input_Data_Split[["A"]], k = 3),  
-  list(tbl = Group_Input_Data_Split[["B"]], k = 2),  
-  list(tbl = Group_Input_Data_Split[["C"]], k = 2),  
-  list(tbl = Group_Input_Data_Split[["D"]], k = 3),  
-  list(tbl = Group_Input_Data_Split[["E"]], k = 2),  
-  list(tbl = Group_Input_Data_Split[["F"]], k = 2),  
-  list(tbl = Group_Input_Data_Split[["G"]], k = 2)   
-)
-
-# Group Clustering Function
-kmeans_func_groups <- function(x) {
-  results_run <- h2o.kmeans(training_frame = tbl_h20, k = clusters, x = v_used, init = "Random",max_iterations=100,standardize = FALSE)
-  list(results = results_run, wss = h2o.tot_withinss(results_run))
-}
-
-ptm <- proc.time()
-# Applying the function for each Super Group and storing cluster assignments
-cluster_assignments_Groups <- vector("list", length(tables_list))
-
-for (i in seq_along(tables_list)) {
-  
-  # Select the Super Group data subset
-  tbl_h20 <- as.h2o(tables_list[[i]]$tbl)
-  
-  # Select the number of clusters for the Group
-  clusters <- tables_list[[i]]$k
-  
-  # Apply the function for each element in the vector
-  results_list <- map(1:1000, ~kmeans_func_groups(.x))
-  
-  # Find the result with the minimum wss
-  best_result <- reduce(results_list, function(a, b) {
-    if(b$wss < a$wss) b else a
-  })
-  
-  # Extract the best results
-  results <- best_result$results
-  
-  # Find the cluster assignments for OA
-  results_lookup <- h2o.predict(results, tbl_h20) %>%
-    as_tibble()
-  
-  # Create OA lookup
-  tmp_cluster_assignments_Groups <- tbl_h20 %>%
-    as_tibble() %>% 
-    select(OA) %>%
-    bind_cols(results_lookup)
-  
-  # Append OA lookup to the results list
-  cluster_assignments_Groups[[i]] <- tmp_cluster_assignments_Groups
-  
-  # Remove tmp items
-  rm(tbl_h20,clusters,results_list,best_result,results,results_lookup,tmp_cluster_assignments_Groups)
-  
-}
-
-proc.time() - ptm
-
-h2o.shutdown()
-
-#---------
-# Create Group Lookups
-#---------
-
-# Create Lookup for Groups
-cluster_assignments_Groups <- bind_rows(cluster_assignments_Groups)
-
-
-# Create Groups lookup
-cluster_assignments_Groups %<>%
-  left_join(cluster_assignments) %>%
-  mutate(predict = predict + 1 ) %>%
-  unite(G, SG, predict, sep = "",remove = FALSE) %>%
-  select(-predict)
-
-# Create outputs
-
-cluster_assignments_SF <- OA_2021_Boundary %>%
-  left_join(cluster_assignments_Groups, by = c("OA21CD" = "OA")) %>%
-  filter(!is.na(SG))
-
-st_write(cluster_assignments_SF, "./map/LOAC_Group.gpkg", driver = "GPKG")
-write_parquet(cluster_assignments_Groups, "./data/LOAC_Group.parquet")
-
-st_write(LAD_Dec22, "./map/LAD_Dec22.gpkg", driver = "GPKG")
-
-
-############################################################
-# Create Descriptive Material
-############################################################
-
-cluster_assignments_Groups <- read_parquet("./data/LOAC_Group.parquet")
-
-#---------
-# Create Index Scores for Super Groups and Groups
-#---------
-
-# Get data
-OA_london <- OA_Region %>%
-  filter( rgn22nm == "London") %>%
-  select(oa21cd) %>%
-  left_join(OA_UTLAD) %>%
-  rename(OA = oa21cd) %>%
-  select(OA, lad22cd,lad22nm)
-
-# List of data
-list_of_dfs <- list(OA_london, Non_PCT, OA21_SDR_London,tmp_table,v03,v04,v05,v06,v26,v28,v29,v36,v37,v60)
-
-# Combine
-OA_london <- list_of_dfs %>%
-  reduce(left_join, by = "OA")
-
-# Append Clusters
-OA_london %<>%
-  left_join(cluster_assignments_Groups)
-
-# Calculate Index Scores and transpose Groups
-IS_Groups <- OA_london %>%
-                group_by(G) %>%
-                summarise(across(where(is.numeric), mean, na.rm = TRUE))%>%
-                ungroup() %>%
-                mutate(across(where(is.numeric), ~ .x / mean(.x, na.rm = TRUE) * 100)) #index score
-
-IS_Groups %<>%
-  pivot_longer(-G, names_to = "no", values_to = "Value") %>%
-  pivot_wider(names_from = G, values_from = Value)
-
-# Append variable names
-Index_Scores_Groups <- variable_lookup %>%
-  clean_names() %>%
-  select(no, variable_name,domain) %>%
-  left_join(IS_Groups)
-
-# Calculate Index Scores and transpose Supergroups
-IS_SGroups <- OA_london %>%
-  group_by(SG) %>%
-  summarise(across(where(is.numeric), mean, na.rm = TRUE))%>%
-  ungroup() %>%
-  mutate(across(where(is.numeric), ~ .x / mean(.x, na.rm = TRUE) * 100)) #index score
-
-IS_SGroups %<>%
-  pivot_longer(-SG, names_to = "no", values_to = "Value") %>%
-  pivot_wider(names_from = SG, values_from = Value)
-
-# Append variable names
-Index_Scores_SGroups <- variable_lookup %>%
-  clean_names() %>%
-  select(no, variable_name,domain) %>%
-  left_join(IS_SGroups)
-
-#---------
-# Create Group Index Score Plots
-#---------
-
-# Group Index Score Table
-Index_Scores_Groups_L <- Index_Scores_Groups %>% 
-  pivot_longer(cols = c(A1, A2, A3, B1, B2, C1, C2, D1, D2, D3, E1, E2, F1, F2, G1, G2), names_to = "new_variable", values_to = "value") %>%
-  mutate(
-    category = factor(case_when(
-      value < 80 ~ "<80",
-      value >= 80 & value <= 120 ~ "80-120",
-      value > 120 & value <= 200 ~ "120-200",
-      value > 200 ~ "200+",
-      TRUE ~ "Other"
-    ), levels = rev(c("<80", "80-120", "120-200", "200+"))),
-    
-    variable_name = factor(variable_name, levels = Index_Scores_Groups$variable_name)
-  ) 
-
-
-my_colors <- c("<80" = "#2a9d8f", "80-120" = "#e9c46a", "120-200" = "#f4a261", "200+" = "#e76f51")
-
-demographic <- Index_Scores_Groups_L %>%
-  filter(domain == "Demographic") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-employment <- Index_Scores_Groups_L %>%
-  filter(domain == "Employment") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  coord_fixed() +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Ethnicity_Origins <- Index_Scores_Groups_L %>%
-  filter(domain == "Ethnicity and Origins") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Living_Arrangements <- Index_Scores_Groups_L %>%
-  filter(domain == "Living Arrangements") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Other <- Index_Scores_Groups_L %>%
-  filter(domain == "Other") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Usual_Residence <- Index_Scores_Groups_L %>%
-  filter(domain == "Usual Residence") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors,name = "Index") +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        plot.background = element_rect(fill = "#f8f9fa"),
-        legend.background = element_rect(fill = "transparent")) 
-
-Usual_Residence / Ethnicity_Origins / demographic / employment / 
-  Living_Arrangements / Other + plot_layout(guides = 'collect')
-
-ggsave("index_plot_groups.png", height = 30, width = 20, units = "cm")
-
-#---------
-# Create Supergroup Index Score Plots
-#---------
-
-# Supergroup Index Score Table
-Index_Scores_L <- Index_Scores_SGroups  %>% 
-  pivot_longer(cols = c(A, B, C, D, E, F, G), names_to = "new_variable", values_to = "value") %>%
-  mutate(
-    category = factor(case_when(
-      value < 80 ~ "<80",
-      value >= 80 & value <= 120 ~ "80-120",
-      value > 120 & value <= 200 ~ "120-200",
-      value > 200 ~ "200+",
-      TRUE ~ "Other"
-    ), levels = rev(c("<80", "80-120", "120-200", "200+"))),
-    
-    variable_name = factor(variable_name, levels = Index_Scores_SGroups$variable_name)
-  ) 
-
-
-my_colors <- c("<80" = "#2a9d8f", "80-120" = "#e9c46a", "120-200" = "#f4a261", "200+" = "#e76f51")
-
-
-demographic <- Index_Scores_L %>%
-  filter(domain == "Demographic") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-employment <- Index_Scores_L %>%
-  filter(domain == "Employment") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  labs(x = "Super Group", y = NULL) +
-  coord_fixed() +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Ethnicity_Origins <- Index_Scores_L %>%
-  filter(domain == "Ethnicity and Origins") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Living_Arrangements <- Index_Scores_L %>%
-  filter(domain == "Living Arrangements") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Other <- Index_Scores_L %>%
-  filter(domain == "Other") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  theme(axis.title.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Usual_Residence <- Index_Scores_L %>%
-  filter(domain == "Usual Residence") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = category)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors,name = "Index") +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        plot.background = element_rect(fill = "#f8f9fa"),
-        legend.background = element_rect(fill = "transparent")) 
-
-Usual_Residence / Ethnicity_Origins / demographic / employment / 
-  Living_Arrangements / Other + plot_layout(guides = 'collect')
-
-ggsave("index_plot.png", height = 30, width = 20, units = "cm")
-
-#---------
-# Create Merged Index Plot for Supergroups and Groups
-#---------
-
-# Create two new tables as copies
-Index_Scores_Compare <- Index_Scores_SGroups %>% select(A:G)
-Index_Scores_Groups_Compare <- Index_Scores_Groups %>% select(A1:G2)
-
-# Recode each column into the plot categories
-recode_numeric <- function(x) {
-  case_when(
-    x < 80 ~ "<80",
-    x >= 80 & x <= 120 ~ "80-120",
-    x > 120 & x <= 200 ~ "120-200",
-    x > 200 ~ "200+",
-    TRUE ~ NA_character_
+ggsave("./plot/Comparison.png", plot = plot, device = "png", width = 6, height = 4, dpi = 300)
+
+
+# Create cross-tabulation (Scotland & NI Only)
+cross_tab_S_NI <- OA_11_21_22_lookup %>%
+  filter(!grepl("^[EW]", OA))%>%
+  count(Supergroup_Old, Supergroup_New) %>%
+  rename(Freq = n) %>%
+  filter(!is.na(Supergroup_New)) %>%
+  mutate(Supergroup_New = str_replace_all(Supergroup_New, "\n", " ")) %>%
+  mutate(Supergroup_Old = str_replace_all(Supergroup_Old, "\n", " "))
+
+# Plot flows using ggalluvial
+plot <- ggplot(cross_tab_S_NI, aes(
+  axis1 = Supergroup_Old,
+  axis2 = Supergroup_New,
+  y = Freq
+)) +
+  geom_alluvium(aes(fill = Supergroup_Old)) +
+  geom_stratum() +
+  geom_text(stat = "stratum", aes(label = after_stat(stratum)), size= 1) +
+  labs(
+    x = NULL,
+    y = NULL
+  ) +
+  scale_fill_manual(values = c("#C7BB9D","#6DAB57","#E23921","#E38ABC","#E88631","#F2CB4C","#5881F6","#8C569E")) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),  # Remove x-axis tick labels
+    axis.text.y = element_blank(),  # Remove y-axis tick labels
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "none"
   )
-}
-
-Index_Scores_Compare <- Index_Scores_Compare %>% mutate_all(recode_numeric)
-Index_Scores_Groups_Compare <- Index_Scores_Groups_Compare %>% mutate_all(recode_numeric)
-
-# Create an empty table
-Index_Scores_Groups_SuperGroups_Compare <- Index_Scores_Groups_Compare
-
-# Loop over the column names in Index_Scores_Groups_Compare
-for (col_name in names(Index_Scores_Groups_Compare)) {
-  # Extract the first letter of the column name
-  first_letter <- substr(col_name, 1, 1)
-  # If a column matches the first letter, compare the two columns
-  if (first_letter %in% names(Index_Scores_Compare)) {
-    # Create a new column in Index_Scores_Groups_SuperGroups_Compare
-    Index_Scores_Groups_SuperGroups_Compare[[col_name]] <- ifelse(Index_Scores_Groups_Compare[[col_name]] == Index_Scores_Compare[[first_letter]], "Same", Index_Scores_Groups_Compare[[col_name]])
-  }
-}
-
-# Append the variable names
-Index_Scores_Groups_SuperGroups_Compare <- Index_Scores_Groups %>%
-  select(no, variable_name,domain) %>%
-  bind_cols(Index_Scores_Groups_SuperGroups_Compare)
-
-# Group / SuperGroup Comparison Index Score Table
-Index_Scores_Comparison_L <- Index_Scores_Groups_SuperGroups_Compare %>% 
-  pivot_longer(cols = c(A1, A2, A3, B1, B2, C1, C2, D1, D2, D3, E1, E2, F1, F2, G1, G2), names_to = "new_variable", values_to = "value") %>%
-  mutate(variable_name = factor(variable_name, levels = Index_Scores_Groups_SuperGroups_Compare$variable_name))
-
-Index_Scores_Comparison_L$value <- factor(Index_Scores_Comparison_L$value, levels = rev(c("Same","<80", "80-120", "120-200", "200+")))
-
-my_colors <- c("<80" = "#2a9d8f", "80-120" = "#e9c46a", "120-200" = "#f4a261", "200+" = "#e76f51","Same"= "#edeff2")
-
-demographic <- Index_Scores_Comparison_L %>%
-  filter(domain == "Demographic") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = value)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-employment <- Index_Scores_Comparison_L %>%
-  filter(domain == "Employment") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = value)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  coord_fixed() +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Ethnicity_Origins <- Index_Scores_Comparison_L %>%
-  filter(domain == "Ethnicity and Origins") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = value)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Living_Arrangements <- Index_Scores_Comparison_L %>%
-  filter(domain == "Living Arrangements") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = value)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Other <- Index_Scores_Comparison_L %>%
-  filter(domain == "Other") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = value)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors) +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        legend.position="none",
-        plot.background = element_rect(fill = "#f8f9fa")) 
-
-Usual_Residence <- Index_Scores_Comparison_L %>%
-  filter(domain == "Usual Residence") %>%
-  ggplot(aes(x = new_variable, y = variable_name, fill = value)) +
-  geom_tile(color = "black") +
-  scale_fill_manual(values = my_colors,name = "Index") +
-  coord_fixed() +
-  labs(x = "Super Group", y = NULL) +
-  geom_vline(xintercept = 3.5,lwd=1.3) +
-  geom_vline(xintercept = 5.5,lwd=1.3) +
-  geom_vline(xintercept = 7.5,lwd=1.3) +
-  geom_vline(xintercept = 10.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 12.5,lwd=1.3) +
-  geom_vline(xintercept = 14.5,lwd=1.3) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        plot.background = element_rect(fill = "#f8f9fa"),
-        legend.background = element_rect(fill = "transparent")) 
-
-Usual_Residence / Ethnicity_Origins / demographic / employment / 
-  Living_Arrangements / Other + plot_layout(guides = 'collect')
-
-ggsave("index_plot_comparisons.png", height = 30, width = 20, units = "cm")
-
-#---------
-# Check top and bottom 10 features for Supergroups and Groups
-#---------
-
-# Ranking Functions
-rank_rows_top <- function(df, column_name) {
-  column_name <- sym(column_name)
-  df %>%
-    arrange(desc( !!sym(column_name) )) %>%
-    filter(!!sym(column_name) > 120) %>%
-    select(variable_name,  !!sym(column_name) )
-}
-
-rank_rows_bottom <- function(df, column_name) {
-  column_name <- sym(column_name)
-  df %>%
-    arrange( !!sym(column_name) ) %>%
-    filter(!!sym(column_name) <80) %>%
-    select(variable_name,  !!sym(column_name) )
-}
-
-# List of column names A-G
-column_names <- c("A", "B", "C", "D", "E", "F", "G")
-
-# Create a list of data frames, each containing the variable_name and one of the columns A-G
-ranked_index_list_top_SG <- map(column_names, ~ rank_rows_top(Index_Scores_SGroups, .))
-ranked_index_list_bottom_SG <- map(column_names, ~ rank_rows_bottom(Index_Scores_SGroups, .))
-
-column_names <- c("A1", "A2", "A3", "B1", "B2", "C1", "C2", "D1", "D2", "D3", "E1", "E2", "F1", "F2", "G1", "G2")
-
-# Create a list of data frames, each containing the variable_name and one of the columns A-G
-ranked_index_list_top_G <- map(column_names, ~ rank_rows_top(Index_Scores_Groups, .))
-ranked_index_list_bottom_G <- map(column_names, ~ rank_rows_bottom(Index_Scores_Groups, .))
-
-############################################################
-# Create Maps for Supergroups and Groups
-############################################################
-
-#---------
-# Icon Maps
-#---------
-
-cluster_assignments_SF <- st_read("./map/LOAC_Group.gpkg")
-  
-# Map Cluster Function  
-  plot_and_save <- function(cluster) {
-    plot <- ggplot() +
-      geom_sf(data = cluster_assignments_SF, fill = "#1b263b", color = "#1b263b") +
-      geom_sf(data = dplyr::filter(cluster_assignments_SF, SG == cluster), fill = "#415a77", color = "#415a77") +
-      theme_void()
-    
-    ggsave(filename = paste0(cluster, ".png"), plot = plot)
-  }
-  
-  # Supergroups
-  clusters <- LETTERS[1:7]
-  purrr::map(clusters, plot_and_save)
-  
-  # Groups
-  clusters <- c("A1", "A2", "A3", "B1", "B2", "C1", "C2", "D1", "D2", "D3", "E1", "E2", "F1", "F2", "G1", "G2")
-  purrr::map(clusters, plot_and_save)
-
-  #---------
-  # GLA Supergroup and Group Map
-  #---------
-
-SGroup_palette <- c("A" = "#66c2a5", "B" = "#fc8d62", "C" = "#8da0cb", "D" = "#e78ac3", "E" = "#a6d854", "F" = "#ffd92f", "G" = "#D9dddf","black" ="Not Built Up" )
-
-LonLAD <- paste0("E090000", sprintf("%02d", 1:33))
-
-ggplot() +
-  geom_sf(data = cluster_assignments_SF, aes(fill = SG),color = NA) +
-  scale_fill_manual(values = SGroup_palette,drop = FALSE,name = "SG") +
-  geom_sf(data = dplyr::filter(LAD_Dec22, LAD22CD %in% LonLAD), fill = NA, color = "black")+
-  theme_void() 
-
-Group_palette_maps <- c("A1" = "#539B84", "A2" = "#97C3B5", "A3" = "#C5FFEC",
-                    "B1" = "#CA714E", "B2" = "#FC9872",
-                    "C1" = "#63708E", "C2" = "#C6D0E5",
-                    "D1" = "#B96E9C", "D2" = "#EEADD5", "D3" = "#FFB9DA",
-                    "E1" = "#74973B", "E2" = "#CAE898",
-                    "F1" = "#CCAE26", "F2" = "#FFE882",
-                    "G1" = "#7D7D7D", "G2" = "#D1D1D1",
-                   "Not Built Up" = "black")
-
-ggplot() +
-  geom_sf(data = cluster_assignments_SF, aes(fill = G),color = NA) +
-  scale_fill_manual(values = Group_palette_maps,drop = FALSE,name = "G") +
-  geom_sf(data = dplyr::filter(LAD_Dec22, LAD22CD %in% LonLAD), fill = NA, color = "black")+
-  theme_void()
-#
-
-
-
-
-
-#---------
-# Create SF with built environment cut out of OA
-#---------
-
-
-
-#Append Borough codes
-# OA_LAD <- cluster_assignments_SF %>%
-#   st_centroid() %>%
-#   st_join(LAD_Dec21) %>%
-#   st_drop_geometry() %>%
-#   select(OA21CD, LAD21CD) %>%
-#   left_join(cluster_assignments_SF) %>%
-#   st_as_sf(crs =27700) 
-
-
-OA_LAD <- cluster_assignments_SF %>%
-  left_join(OA_UTLAD, by= c("OA21CD" = "oa21cd")) %>%
-  select(OA21CD,G,SG,lad22cd,lad22nm)
-
-
-
-# Import geopackage for built environment (https://osdatahub.os.uk/downloads/open/BuiltUpAreas)
-built <- st_read("./map/OS_Open_Built_Up_Areas.gpkg", layer = "OS_Open_Built_Up_Areas", quiet = TRUE)
-
-# Import geopackage for greenspace (https://osdatahub.os.uk/downloads/open/OpenGreenspace)
-greenspace <- st_read("./map/opgrsp_gb.gpkg", layer = "greenspace_site", quiet = TRUE)
-
-# Calculate Area
-greenspace %<>%
-  mutate(area = st_area(.)) %>%
-  filter(area > units::set_units(40000, m^2))
-
-# Smooth jagged edges
-built %<>%
-  st_buffer(dist=21) %>%
-  st_buffer(dist=-20) %>%
-  st_simplify(preserveTopology = TRUE, dTolerance = 15)
-
-# Perform the clip operation to trim LSOA to built area
-OA_LAD_Built <- st_intersection(OA_LAD, built)
-
-# Clean up attributes
-OA_LAD_Built %<>%
-  select(OA21CD, lad22cd,G, SG)
-
-# Cut out greenspace
-OA_LAD_Built %<>%
-  st_difference(st_union(greenspace))
-
-# Write lsoa_21_built to geopackage
-st_write(OA_LAD_Built, "map/LOAC_Group_built.gpkg", layer = "OA_LAD_Built", driver = "GPKG")
-
-
-
-
-#---------
-# Create Borough Maps
-#---------
-
-create_map <- function(LAD22CD_val, LAD_Dec22, OA_LAD_Built, Group_palette_maps) {
-  
-  # Filter and transform
-  tx <- LAD_Dec22 %>%
-    dplyr::filter(LAD22CD == LAD22CD_val) %>%
-    st_transform(4326)
-  
-  # OSM data
-  Transport_Tmp <- opq(st_bbox(tx)) %>%
-    add_osm_feature(key = "railway", value = "station") %>% 
-    add_osm_feature(key = "network", value = c("Underground","Docklands","Rail","Tram","DLR"),value_exact=FALSE) %>%
-    osmdata_sf()
-  
-  # Check if Transport_Tmp$osm_points is empty
-  if (nrow(Transport_Tmp$osm_points) == 0) {
-    Transport_Tmp <- NULL
-    warning(paste("No data retrieved for LAD21CD:", LAD22CD_val))
-  } else {
-    Transport_Tmp <- Transport_Tmp$osm_points %>%
-      select(name) %>%
-      st_intersection(tx) %>%
-      st_transform(27700) %>%
-      mutate(x = sf::st_coordinates(.)[, 1], y = sf::st_coordinates(.)[, 2])
-  }
-  
-  
-  #select the LAD and amend levels
-  LAD <- dplyr::filter(OA_LAD_Built, lad22cd == LAD22CD_val) %>% 
-    mutate(G = factor(G, levels = c("A1", "A2", "A3", "B1", "B2", "C1", "C2", "D1", "D2", "D3", "E1", "E2", "F1", "F2", "G1", "G2","Not Built Up")))
-  
-  
-  # Plot
-  plot <- ggplot() +
-    geom_sf(data = dplyr::filter(LAD_Dec22, LAD22CD == LAD22CD_val), fill = "black", color = NA) +
-    geom_sf(data = LAD, aes(fill = G), lwd = 0.01, color = "black") +
-    scale_fill_manual(values = Group_palette_maps, drop = FALSE, name = "Group") +
-    geom_sf(data = dplyr::filter(LAD_Dec22, LAD22CD == LAD22CD_val), fill = NA, lwd = 0.8, color = "black") +
-    ggspatial::annotation_scale() +
-    theme_void()
-  
-  # Add the transport layers conditionally, if data exists
-  if (!is.null(Transport_Tmp)) {
-    plot <- plot + 
-      geom_sf(data = Transport_Tmp, color = "red") +
-      geom_text_repel(data = Transport_Tmp, bg.color = "white", aes(x = x, y = y, label = name), size = 2)
-  }
-  
-  # # Save
-  #  ggsave(paste0(dplyr::filter(LAD_Dec22, LAD22CD == LAD22CD_val) %>% select(LAD22NM) %>% st_drop_geometry() %>% pull(), ".pdf"),
-  #         plot = plot,
-  #         width = 20,
-  #         height = 20,
-  #         units = 'cm')
-  return(plot)
-}
-
-# # Generates Borough Maps
-# lapply(LonLAD, function(LAD22CD_val) {
-#   create_map(LAD22CD_val, LAD_Dec22, OA_LAD_Built, Group_palette_maps)
-# })
-
-
-
-
-############################################################
-# Create Borough Descriptions & Profiles
-############################################################
-
-#---------
-# Create Borough Index Score Graphs
-#---------
-
-# 
-OA_LAD_POP <- OA_LAD %>%
-  left_join(ts007a, by = c("OA21CD" = "OA")) %>%
-  st_drop_geometry()
-
-# Create Base %
-
-base <- OA_LAD_POP %>%
-          group_by(G) %>%
-          summarize(sum_ts007a0001 = sum(ts007a0001)) %>%
-          ungroup() %>% 
-          mutate(G_BASE_PCT = (sum_ts007a0001 / sum(sum_ts007a0001)) * 100) %>%
-          select(G, G_BASE_PCT)
-
-
-# Create LAD Population Counts
-
-LAD_POP <- OA_LAD_POP %>%
-            group_by(lad22cd) %>%
-            summarise(LAD_POP = sum(ts007a0001))
-
-
-# Create LAD Group Counts
-LAD_POP_GROUP <- OA_LAD_POP %>%
-  group_by(lad22cd,G) %>%
-  summarise(LAD_POP_GROUP = sum(ts007a0001))
-
-
-# Creates a table with all potential LAD / Group options
-LAD_POP_GROUP_TMP <- expand.grid(
-  lad22cd = unique(OA_LAD_POP[["lad22cd"]]),
-  G = c("A1", "A2", "A3", "B1", "B2", "C1", "C2", "D1", "D2", "D3", "E1", "E2", "F1", "F2", "G1", "G2")
+
+ggsave("./plot/Comparison_S_NI.png", plot = plot, device = "png", width = 6, height = 4, dpi = 300)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Map Old & New #
+#####################
+# Output Areas (Dec 2021) Boundaries Full Clipped EW (BFC) - E&W
+# Manually download https://drive.google.com/uc?export=download&id=1y1CHipxAZ0NOrmd8iSDkOqm4oTqUwtSJ
+OA_2021_Boundary_EW <- st_read("Output_Areas_2021_EW_BFC_V8.gpkg")
+OA_2021_Boundary_EW %<>%
+  rename(OA = OA21CD) %>%
+  rename(geometry = geom)
+
+# UK 2011 Boundary
+temp_zip <- tempfile(fileext = ".zip")
+download.file(
+  url      = "https://borders.ukdataservice.ac.uk/ukborders/easy_download/prebuilt/shape/infuse_oa_lyr_2011_clipped.zip",
+  destfile = temp_zip,
+  mode     = "wb"
 )
+temp_dir <- tempdir()
+unzip(zipfile = temp_zip,  exdir = temp_dir)
+shp_path <- file.path(temp_dir, "infuse_oa_lyr_2011_clipped.shp")
+OA_2011 <- st_read(shp_path)
 
-# Fills the gaps where Groups aren't present
-LAD_POP_GROUP <- LAD_POP_GROUP_TMP %>%
-  left_join(LAD_POP_GROUP, by = c("lad22cd", "G")) %>%
-  mutate(LAD_POP_GROUP = replace_na(LAD_POP_GROUP, 0)) %>%
-  as_tibble()
+# NI
+NI_SA <- OA_2011 %>%
+  filter(startsWith(geo_code, "N"))%>%
+  rename(OA = geo_code)
 
-# Calculate the target % and append base
-LAD_POP_GROUP %<>%
-        left_join(LAD_POP) %>%
-        mutate(G_TARGET_PCT = (LAD_POP_GROUP /LAD_POP) * 100) %>%
-        select(lad22cd, G, G_TARGET_PCT,LAD_POP_GROUP) %>%
-        left_join(base)
-      
+# Scotland
+S_SA <- OA_2011 %>%
+  filter(startsWith(geo_code, "S"))%>%
+  rename(OA = geo_code)
 
-# Create Index
-LAD_POP_INDEX <- LAD_POP_GROUP %>%
-                    mutate(INDEX_SCORE = G_TARGET_PCT / G_BASE_PCT *100) %>%
-                    left_join(LAD_Dec22, by = c("lad22cd" = "LAD22CD")) %>%
-                    st_drop_geometry() %>%
-                    mutate(INDEX_SCORE_Plot = if_else(INDEX_SCORE >= 200, INDEX_SCORE + 100, INDEX_SCORE)) %>%
-                    mutate(INDEX_SCORE_Plot = INDEX_SCORE_Plot - 100) %>%
-                    mutate(INDEX_SCORE_Plot = if_else(INDEX_SCORE == 0, 0, INDEX_SCORE_Plot)) %>%
-                    select(-geometry)
+OA_2021_Boundary_EW <- st_transform (OA_2021_Boundary_EW, 27700)
+NI_SA <- st_transform (NI_SA, 27700)
+S_SA <- st_transform (S_SA, 27700)
 
 
-Group_palette <- c("A1" = "#539B84", "A2" = "#97C3B5", "A3" = "#C5FFEC",
-                   "B1" = "#CA714E", "B2" = "#FC9872",
-                   "C1" = "#63708E", "C2" = "#C6D0E5",
-                   "D1" = "#B96E9C", "D2" = "#EEADD5", "D3" = "#FFB9DA",
-                   "E1" = "#74973B", "E2" = "#CAE898",
-                   "F1" = "#CCAE26", "F2" = "#FFE882",
-                   "G1" = "#7D7D7D", "G2" = "#D1D1D1")
+UK <- OA_2021_Boundary_EW %>%
+  bind_rows(NI_SA,S_SA) %>%
+  left_join(UK_OAC_Preview, by = c("OA" = "Geography_Code"))
 
-
-
-create_plot <- function(LAD22CD_val) {
-  
-  # Extract labels for specific LAD22CD_val
-  plt_labels <- LAD_POP_INDEX %>%
-    filter(lad22cd == LAD22CD_val) %>%
-    select(INDEX_SCORE) %>%
-    pull() %>%
-    map(~ ifelse(. == 0, NA, .)) %>%
-    unlist()
-  
-  
-  plt_data <- dplyr::filter(LAD_POP_INDEX, lad22cd == LAD22CD_val) %>%
-    mutate(INDEX_SCORE_Plot = ifelse(INDEX_SCORE_Plot > 415, 415, INDEX_SCORE_Plot))
-  
-  
-  # Set colors and font weights
-  color_vec <- ifelse(is.na(plt_labels), "#D3D3D3", "#000000")
-  face_vec <- ifelse(is.na(plt_labels), "plain", "bold")
-  
-  # Create the plot
-  plot <- ggplot(plt_data , aes(G, INDEX_SCORE_Plot)) + 
-    
-    geom_hline(yintercept=c(-20,120,200), linetype='dashed',color="#7D7D7D",linewidth=0.2) +
-    coord_cartesian(ylim = c(-100, 400),clip = 'off') +
-    geom_bar(stat = "identity", fill = Group_palette) +
-    geom_hline(yintercept=c(0), color="#7D7D7D") +
-    geom_text(aes(label = round(plt_labels) ),size = 3,na.rm =TRUE) +
-    scale_x_discrete("LOAC Groups") +
-    scale_y_continuous(breaks = NULL) +
-    theme_minimal() +
-    theme(axis.text.y=element_blank(),
-          panel.border = element_rect(color = NA, fill = NA),
-          axis.text.x = element_text(colour = color_vec,face = face_vec),
-          plot.title = element_text(hjust = 0.5)) +
-    theme(axis.title.y=element_text(angle=90, vjust=6)) +
-    theme(axis.title.x=element_text(vjust=-5)) +
-    theme(plot.margin = margin(1.3,1.3,1.3,1.3, "cm")) +
-    ylab("Index Score") +
-    ggtitle(dplyr::filter(LAD_POP_INDEX, lad22cd == LAD22CD_val) %>% select(LAD22NM) %>% unique() %>% pull()) +
-    annotate("text", x=0, y=-20, label="    80",size = 3) +
-    annotate("text", x=0, y=0, label="     100",size = 3) +
-    annotate("text", x=0, y=120, label="    120",size = 3) +
-    annotate("text", x=0, y=200, label="     200",size = 3)
-  
-  # Save plot
-  # ggsave(paste0(dplyr::filter(LAD_Dec22, LAD22CD == LAD22CD_val) %>% select(LAD22NM) %>% st_drop_geometry() %>% pull(), ".pdf"),
-  #        plot = plot,
-  #        width = 20,
-  #        height = 15,
-  #        units = 'cm')
-  
-  return(plot)
-}
-
-
-# # To generate plots for all values in LonLAD:
-# for (lad in LonLAD) {
-#   create_plot(lad)
-# }
-# 
-
-
-
-
-
-
-
-#---------
-# Create Borough Report
-#---------
-
-# Setup Borough Report
-Borough_Profiles <- read_docx("Report_Template.docx")
-
-generate_borough_report <- function(LAD22CD_val) {
-  
-  tmp_pop_dist_table <- dplyr::filter(LAD_POP_INDEX, lad22cd == LAD22CD_val) %>%
-    select(G, LAD_POP_GROUP) %>%
-    mutate(Total_Population = label_comma(accuracy = 1)(LAD_POP_GROUP)) %>%
-    rename(Group = G) %>%
-    select(-LAD_POP_GROUP)
-  
-  tmp_borough_map <- create_map(LAD22CD_val, LAD_Dec22, OA_LAD_Built, Group_palette_maps)
-  
-  tmp_borough_name <- dplyr::filter(LAD_Dec22, LAD22CD == LAD22CD_val) %>%
-    select(LAD22NM) %>% 
-    st_drop_geometry() %>% 
-    pull()
-  
-  tmp_borough_index <- create_plot(LAD22CD_val)
-  
-  Borough_Profiles %<>%
-    body_add_par(tmp_borough_name, style = "heading 1") %>%
-    body_add_par("Spatial Distribution", style = "heading 2") %>%
-    body_add_par(paste0("The following map shows the spatial distribution of LOAC Groups across the London borough of ", tmp_borough_name, "."), style = "Normal") %>%
-    body_add_gg(value = tmp_borough_map) %>%
-    body_add_par("Index Scores", style = "heading 2") %>%
-    body_add_par(paste("The incidence of the different LOAC Groups within", tmp_borough_name, "can be compared with the over-all Greater London average by calculating ‘index scores’ for each Group. If the Borough-wide proportion of Output Area zones assigned to a Group were the same as for all Greater London, the score would be 100. A score of 200 would mean that the Group was twice as common, and 50, only half as common. Index scores that are less than 80 or greater than 120 are typically of interest to policy-makers, as of course are values of zero (since the Group is entirely absent)."), style = "Normal") %>%
-    body_add_gg(value = tmp_borough_index) %>%
-    body_add_par("Population Counts", style = "heading 2") %>%
-    body_add_par(paste("The distribution of the population by LOAC Groups is shown in the following table."), style = "Normal") %>%
-    body_add_table(tmp_pop_dist_table, style = "Table Grid") %>%
-    body_add_break()
-  
-  return(Borough_Profiles) # Return the updated Borough_Profiles
-}
-
-# Applying the function to the vector LonLAD
-lapply(rev(LonLAD), generate_borough_report)
-
-
-# Create Borough Profile Document
-print(Borough_Profiles, target = "Borough_Profiles_Output3.docx")
-
-
-
-
+st_write(UK, "./map/OAC_SuperGroup_Old.gpkg", driver = "GPKG")
 
 
 
