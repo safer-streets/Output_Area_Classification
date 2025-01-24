@@ -209,6 +209,13 @@ Density_UK <-Non_PCT_EW %>%
   mutate(v01 = tot_pop/area_ha) %>%
   select(OA, v01)
 
+
+# UK
+Pop_UK <-Non_PCT_EW %>%
+  bind_rows(Non_PCT_NI, Non_PCT_S)
+
+write_parquet(Pop_UK,"./data/Pop_UK.parquet")
+
 rm(Non_PCT_EW,Non_PCT_NI,Non_PCT_S)
 
 Density_UK %<>%
