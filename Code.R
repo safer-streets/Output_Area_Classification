@@ -852,6 +852,10 @@ OAC_Input_IHS <- OAC_Input %>%
   mutate_at(vars(-1), ~rescale(.))
 
 # Save the raw input data
+# NB: the E&W rows written here don't reproduce the E&W assignments, which are the
+# Preview OAC assignments, unchanged (see below). The committed OAC_Input_IHS.parquet
+# has the Preview inputs for E&W; run extra_code/preview_ew_inputs.py after this
+# step to restore them.
 write_parquet(OAC_Input, "./data/OAC_Input.parquet")
 write_parquet(OAC_Input_IHS, "./data/OAC_Input_IHS.parquet")
 

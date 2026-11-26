@@ -59,7 +59,11 @@ The primary goal here was to produce a finalised UK-wide classification, ensurin
 └── README.md               # This README
 ```
 
-- **`OAC_Input.parquet` / `OAC_Input_IHS.parquet`:** Final tabular input data before clustering (raw and transformed).  
+- **`OAC_Input.parquet`:** Final input data (raw percentages) as calculated by `Code.R`. For E&W these are **not** the values the published clusters were built from.  
+- **`OAC_Input_IHS.parquet`:** Transformed inputs (inverse hyperbolic sine, then range-standardised) that reproduce `UK_OAC_Final.parquet` exactly:
+  - **E&W rows** are the Preview OAC inputs ([OAC2021-2](https://github.com/jakubwyszomierski/OAC2021-2) `Data/Clustering/OAC_assignment.csv`, renamed to the Final variable numbering). The E&W assignments are the Preview assignments, unchanged. Classify them top-down (supergroup → group → subgroup) against the published Preview centroids, using all 60 variables.
+  - **Scotland/NI rows** are the Final inputs from `Code.R`. They were assigned to the nearest Preview subgroup centroid, excluding `ex_variables`. `v40`/`v41` are empty for these rows.
+  - Built by `extra_code/preview_ew_inputs.py`, which also checks both rules against `UK_OAC_Final.parquet`. Re-running `Code.R` overwrites this file with the Final values.  
 - **`UK_OAC_Final.parquet`:** Final assignment of Output Areas to OAC clusters.  
 - **`Comparison.png` / `Comparison_S_NI.png`:** Alluvial plots comparing old and new classifications.  
 
@@ -102,7 +106,7 @@ Before running the script:
 
 ## Outputs
 
-1. **`OAC_Input.parquet` / `OAC_Input_IHS.parquet`** – Raw and transformed input variables for each OA.  
+1. **`OAC_Input.parquet` / `OAC_Input_IHS.parquet`** – Raw and transformed input variables for each OA (see Project Structure above: the E&W rows of `OAC_Input_IHS.parquet` are the Preview inputs).  
 2. **`UK_OAC_Final.parquet`** – OA-level cluster assignments (Supergroup, Group, Subgroup).  
 4. **Diagnostic Plots** – Boxplots, alluvial charts, and distribution comparisons in `./plot/`.
 
