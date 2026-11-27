@@ -14,6 +14,10 @@ This script:
   - E&W: top-down nearest centroid (supergroup -> group -> subgroup), all 60 variables
   - S/NI: flat nearest subgroup centroid, excluding ex_variables (the Code.R rule)
 
+The Preview centroids are vendored in data/preview/ (copied unchanged from OAC2021-2 at the
+commit pinned in PREVIEW). The Preview inputs (OAC_assignment.csv, ~100 MB) are still read
+from that commit.
+
 Run from the repository root: python extra_code/preview_ew_inputs.py
 Requires pandas, numpy and pyarrow.
 """
@@ -71,9 +75,10 @@ def main() -> None:
     fixed.loc[ew_codes, variables] = preview.loc[ew_codes, variables].to_numpy()
 
     # checks
-    sup = pd.read_csv(PREVIEW + "OAC_centroids.csv", dtype={"Supergroup8": str}).set_index("Supergroup8")[variables]
-    grp = pd.read_csv(PREVIEW + "OAC_Groups_centroids.csv").set_index("Group")[variables]
-    sub = pd.read_csv(PREVIEW + "OAC_Subgroups_centroids.csv").set_index("Subgroup")[variables]
+    centroids = DATA / "preview"
+    sup = pd.read_csv(centroids / "OAC_centroids.csv", dtype={"Supergroup8": str}).set_index("Supergroup8")[variables]
+    grp = pd.read_csv(centroids / "OAC_Groups_centroids.csv").set_index("Group")[variables]
+    sub = pd.read_csv(centroids / "OAC_Subgroups_centroids.csv").set_index("Subgroup")[variables]
 
     ew = fixed.loc[ew_codes, variables]
     assert not ew.isna().any().any()
